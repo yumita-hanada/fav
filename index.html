@@ -409,8 +409,8 @@ const firebaseConfig = window.FIREBASE_CONFIG;
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, signInWithRedirect, getRedirectResult,
-         GoogleAuthProvider, signOut, onAuthStateChanged }
+import { getAuth, signInWithPopup, GoogleAuthProvider,
+         signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
          collection, getDocs, onSnapshot, writeBatch, serverTimestamp, updateDoc }
@@ -1012,6 +1012,7 @@ window.addEventListener('resize',renderAll);
 
 // ── Auth helpers ──────────────────────────────────────────────────
 const provider = new GoogleAuthProvider();
+let _inviteFlowInProgress = false; // prevents onAuthStateChanged from signing out during invite
 const ADMIN_EMAIL = window.ADMIN_EMAIL || '';
 let _cachedAdmin = null;   // cache session
 
@@ -1085,10 +1086,43 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
-    // Save token before redirect — localStorage persists across redirects
-    if(token) localStorage.setItem('invite_token', token);
-    else localStorage.removeItem('invite_token');
-    await signInWithRedirect(auth, provider);
+    const btn = document.getElementById('btn-google-signin');
+    btn.style.opacity = '.5'; btn.style.pointerEvents = 'none';
+    _inviteFlowInProgress = true; // block onAuthStateChanged from signing out
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      console.log('Signed in as:', user.email, user.uid);
+      // Already approved?
+      if(await isApproved(user)){
+        _inviteFlowInProgress = false;
+        bootApp(user); return;
+      }
+      // Try invite token
+      if(token){
+        console.log('Trying token:', token);
+        const ok = await consumeInvite(token, user);
+        console.log('Token result:', ok);
+        if(ok){
+          _inviteFlowInProgress = false;
+          bootApp(user); return;
+        }
+        _inviteFlowInProgress = false;
+        showLoginScreen('❌ Invalid or expired token.');
+        await signOut(auth); return;
+      }
+      _inviteFlowInProgress = false;
+      showLoginScreen('⛔ Access restricted. You need an invitation token.');
+      await signOut(auth);
+    } catch(e){
+      _inviteFlowInProgress = false;
+      if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request'){
+        btn.style.opacity = ''; btn.style.pointerEvents = '';
+        return;
+      }
+      console.error('Sign-in error:', e.code, e.message);
+      showLoginScreen(`⚠ Error: ${e.code} — ${e.message}`);
+    }
   });
 }
 
@@ -1260,44 +1294,15 @@ async function bootApp(user){
 }
 
 // ── Boot entry point ──────────────────────────────────────────────
-// Handle redirect result FIRST — this resolves the pending redirect
-async function handleAuth(){
-  try {
-    const result = await getRedirectResult(auth);
-    if(result){
-      // Returning from Google redirect
-      const user = result.user;
-      const pendingToken = localStorage.getItem('invite_token');
-      localStorage.removeItem('invite_token');
-      if(await isApproved(user)){
-        bootApp(user); return;
-      }
-      if(pendingToken){
-        const ok = await consumeInvite(pendingToken, user);
-        if(ok){ bootApp(user); return; }
-        showLoginScreen('❌ Invalid or expired token.');
-        await signOut(auth); return;
-      }
-      showLoginScreen('⛔ Access restricted. You need an invitation token.');
-      await signOut(auth);
-      return;
-    }
-  } catch(e){
-    console.error('Redirect result error:', e.code, e.message);
-    showLoginScreen(`⚠ Auth error: ${e.code||e.message}`);
-    return;
+onAuthStateChanged(auth, async user=>{
+  if(_inviteFlowInProgress) return; // invite flow handles auth itself
+  if(user){
+    if(await isApproved(user)){ bootApp(user); }
+    else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
+  } else {
+    showLoginScreen();
   }
-  // No redirect — check existing session
-  onAuthStateChanged(auth, async user=>{
-    if(user){
-      if(await isApproved(user)){ bootApp(user); }
-      else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
-    } else {
-      showLoginScreen();
-    }
-  });
-}
-handleAuth();
+});
 </script>
 </body>
 </html>
