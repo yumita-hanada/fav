@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -27,7 +27,7 @@ jobs:
 
       - name: Generate config.js from secrets
         run: |
-          cat > config.js << EOF
+          cat > config.js << CONFIGEOF
           window.FIREBASE_CONFIG = {
             apiKey:            "${{ secrets.FIREBASE_API_KEY }}",
             authDomain:        "links-e3553.firebaseapp.com",
@@ -38,10 +38,10 @@ jobs:
             measurementId:     "${{ secrets.FIREBASE_MEASUREMENT_ID }}"
           };
           window.ADMIN_EMAIL = "${{ secrets.ADMIN_EMAIL }}";
-          EOF
+          CONFIGEOF
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
