@@ -409,8 +409,8 @@ const firebaseConfig = window.FIREBASE_CONFIG;
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, signInWithRedirect, getRedirectResult,
-         GoogleAuthProvider, signOut, onAuthStateChanged }
+import { getAuth, signInWithPopup, GoogleAuthProvider,
+         signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
          collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
@@ -1073,7 +1073,7 @@ function showLoginScreen(msg=''){
         Sign in with Google
       </button>
       <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.6;">
-        Access is by invitation only.<br>If you have an invitation token, sign in first.
+        Access is by invitation only.<br>Enter your invitation token below, then sign in.
       </div>
       <div style="display:flex;gap:8px;width:100%;">
         <input id="invite-token-input" type="text" placeholder="Invitation token (optional)"
@@ -1085,13 +1085,26 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
-    // Store token before redirect (page will reload)
-    if(token) sessionStorage.setItem('invite_token', token);
+    if(token) localStorage.setItem('invite_token', token);
     try {
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const pendingToken = localStorage.getItem('invite_token');
+      localStorage.removeItem('invite_token');
+      if(await isApproved(user)){ bootApp(user); return; }
+      if(pendingToken){
+        const ok = await consumeInvite(pendingToken, user);
+        if(ok){ bootApp(user); return; }
+        showLoginScreen('❌ Invalid or expired token.');
+        await signOut(auth); return;
+      }
+      showLoginScreen('⛔ Access restricted. You need an invitation token.');
+      await signOut(auth);
     } catch(e){
-      console.error(e);
-      showLoginScreen('⚠ Sign-in failed. Try again.');
+      // Ignore COOP warning (cross-origin popup closed warning)
+      if(e.code === 'auth/popup-closed-by-user') return;
+      console.error('Sign-in error:', e.code, e.message);
+      showLoginScreen(`⚠ Error: ${e.code||e.message}`);
     }
   });
 }
@@ -1266,28 +1279,10 @@ async function bootApp(user){
 // ── Boot entry point ──────────────────────────────────────────────
 onAuthStateChanged(auth, async user=>{
   if(user){
-    // Check if we're returning from a redirect with an invite token
-    const pendingToken = sessionStorage.getItem('invite_token');
-    if(pendingToken){
-      sessionStorage.removeItem('invite_token');
-      if(!await isApproved(user)){
-        const ok = await consumeInvite(pendingToken, user);
-        if(ok){ bootApp(user); return; }
-        showLoginScreen('❌ Invalid or expired token.');
-        await signOut(auth); return;
-      }
-    }
     if(await isApproved(user)){ bootApp(user); }
     else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
   } else {
-    // Check for redirect result (returns null if no redirect pending)
-    try {
-      const result = await getRedirectResult(auth);
-      if(!result) showLoginScreen();
-    } catch(e){
-      console.error(e);
-      showLoginScreen('⚠ Sign-in failed. Try again.');
-    }
+    showLoginScreen();
   }
 });
 </script>
