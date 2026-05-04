@@ -409,8 +409,8 @@ const firebaseConfig = window.FIREBASE_CONFIG;
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider,
-         signOut, onAuthStateChanged }
+import { getAuth, signInWithRedirect, getRedirectResult,
+         GoogleAuthProvider, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
          collection, getDocs, onSnapshot, writeBatch, serverTimestamp, updateDoc }
@@ -1085,27 +1085,10 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
+    // Save token before redirect — localStorage persists across redirects
     if(token) localStorage.setItem('invite_token', token);
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const pendingToken = localStorage.getItem('invite_token');
-      localStorage.removeItem('invite_token');
-      if(await isApproved(user)){ bootApp(user); return; }
-      if(pendingToken){
-        const ok = await consumeInvite(pendingToken, user);
-        if(ok){ bootApp(user); return; }
-        showLoginScreen('❌ Invalid or expired token.');
-        await signOut(auth); return;
-      }
-      showLoginScreen('⛔ Access restricted. You need an invitation token.');
-      await signOut(auth);
-    } catch(e){
-      // Ignore COOP warning (cross-origin popup closed warning)
-      if(e.code === 'auth/popup-closed-by-user') return;
-      console.error('Sign-in error:', e.code, e.message);
-      showLoginScreen(`⚠ Error: ${e.code||e.message}`);
-    }
+    else localStorage.removeItem('invite_token');
+    await signInWithRedirect(auth, provider);
   });
 }
 
@@ -1277,14 +1260,44 @@ async function bootApp(user){
 }
 
 // ── Boot entry point ──────────────────────────────────────────────
-onAuthStateChanged(auth, async user=>{
-  if(user){
-    if(await isApproved(user)){ bootApp(user); }
-    else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
-  } else {
-    showLoginScreen();
+// Handle redirect result FIRST — this resolves the pending redirect
+async function handleAuth(){
+  try {
+    const result = await getRedirectResult(auth);
+    if(result){
+      // Returning from Google redirect
+      const user = result.user;
+      const pendingToken = localStorage.getItem('invite_token');
+      localStorage.removeItem('invite_token');
+      if(await isApproved(user)){
+        bootApp(user); return;
+      }
+      if(pendingToken){
+        const ok = await consumeInvite(pendingToken, user);
+        if(ok){ bootApp(user); return; }
+        showLoginScreen('❌ Invalid or expired token.');
+        await signOut(auth); return;
+      }
+      showLoginScreen('⛔ Access restricted. You need an invitation token.');
+      await signOut(auth);
+      return;
+    }
+  } catch(e){
+    console.error('Redirect result error:', e.code, e.message);
+    showLoginScreen(`⚠ Auth error: ${e.code||e.message}`);
+    return;
   }
-});
+  // No redirect — check existing session
+  onAuthStateChanged(auth, async user=>{
+    if(user){
+      if(await isApproved(user)){ bootApp(user); }
+      else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
+    } else {
+      showLoginScreen();
+    }
+  });
+}
+handleAuth();
 </script>
 </body>
 </html>
