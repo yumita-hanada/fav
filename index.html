@@ -217,6 +217,8 @@
 
   /* Toggle button active state */
   #btn-toggle-tags.active { color: var(--text); border-color: rgba(255,255,255,.25); }
+  #btn-lock { font-size:15px; }
+  #btn-lock.unlocked { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
 </style>
 </head>
 <body>
@@ -239,6 +241,7 @@
     </div>
     <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync"></div>
+      <div class="icon-btn" id="btn-lock" title="Unlock confidential links">🔒</div>
       <div class="icon-btn" id="btn-toggle-tags" title="Toggle tags">⊟</div>
       <div class="icon-btn" id="btn-add-link" title="Add link">＋</div>
       <div class="icon-btn" id="btn-settings" title="Settings">⚙</div>
@@ -518,7 +521,11 @@ const pagesEl=document.getElementById('pages-container');
 const dotsEl=document.getElementById('page-dots');
 let curPage=0, curFilter='all', pages=[];
 
-function filteredLinks(){ return curFilter==='all'?[...DATA.links]:DATA.links.filter(l=>(l.labels||[]).includes(curFilter)); }
+function filteredLinks(){
+  const visible = DATA.links.filter(l => pinUnlocked || !(l.labels||[]).includes(LOCKED_TAG));
+  if(curFilter==='all') return visible;
+  return visible.filter(l=>(l.labels||[]).includes(curFilter));
+}
 function capacity(){
   const s=DATA.settings;
   const cols=Math.floor((pagesEl.clientWidth+s.gap)/(s.cardW+s.gap));
@@ -1091,6 +1098,33 @@ async function showAdminPanel(){
     resEl.innerHTML = `Token: <strong>${token}</strong><br>
       <span style="opacity:.6;font-size:11px;">Share this token with the user — valid ${hours>0?hours+'h':'forever'}</span>`;
   });
+}
+
+// ── App boot ──────────────────────────────────────────────────────
+// ── Confidential lock/unlock ──────────────────────────────────────
+function updateLockBtn(){
+  const btn = document.getElementById('btn-lock');
+  if(!btn) return;
+  if(pinUnlocked){
+    btn.textContent='🔓'; btn.title='Lock confidential links';
+    btn.classList.add('unlocked');
+  } else {
+    btn.textContent='🔒'; btn.title='Unlock confidential links';
+    btn.classList.remove('unlocked');
+  }
+}
+function lockConfidential(){
+  pinUnlocked = false;
+  if(curFilter === LOCKED_TAG){ curFilter = 'all'; renderTagBar(); }
+  updateLockBtn(); renderAll();
+  showToast('🔒 Confidential links hidden', '');
+}
+function unlockConfidential(){
+  if(!askPin()) return;
+  pinUnlocked = true;
+  if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
+  updateLockBtn(); renderAll();
+  showToast('🔓 Confidential links visible', 'success');
 }
 
 // ── App boot ──────────────────────────────────────────────────────
