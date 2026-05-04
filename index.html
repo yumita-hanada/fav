@@ -226,6 +226,8 @@
 
   /* Toggle button active state */
   #btn-toggle-tags.active { color: var(--text); border-color: rgba(255,255,255,.25); }
+  #btn-lock { font-size:15px; }
+  #btn-lock.unlocked { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
 </style>
 </head>
 <body>
@@ -249,6 +251,7 @@
     </div>
     <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync"></div>
+      <div class="icon-btn" id="btn-lock" title="Unlock confidential links">🔒</div>
       <div class="icon-btn" id="btn-toggle-tags" title="Toggle tags">⊟</div>
       <div class="icon-btn" id="btn-add-link" title="Add link">＋</div>
       <div class="icon-btn" id="btn-settings" title="Settings">⚙</div>
@@ -288,9 +291,8 @@
     <div class="settings-section">
       <h3>Firebase</h3>
       <div class="firebase-info">
-        🔥 Connected anonymously<br>
-        User ID: <code id="firebase-uid-display">…</code><br>
-        <span style="opacity:.7;font-size:11px;">Your data is private and tied to this browser.</span>
+        🔥 <span id="firebase-user-display">Connecting…</span><br>
+        <span style="opacity:.7;font-size:11px;">Your data is private and secured.</span>
       </div>
     </div>
 
@@ -301,6 +303,7 @@
         <div class="bg-opt" data-bg="gradient">Gradient</div>
         <div class="bg-opt" data-bg="image">Fixed image</div>
         <div class="bg-opt" data-bg="video">Video (mp4)</div>
+        <div class="bg-opt" data-bg="randomvideos">Random videos</div>
         <div class="bg-opt" data-bg="random">Random images</div>
       </div>
 
@@ -337,6 +340,23 @@
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.6;">
           Supports mp4 URLs. Video plays muted &amp; looped.<br>
           Tip: use a direct .mp4 link (Dropbox, GitHub raw, etc.)
+        </div>
+      </div>
+
+      <div id="bg-randomvideos-opts" style="display:none">
+        <div class="img-url-row">
+          <input type="url" id="rand-vid-url" placeholder="https://… .mp4 URL" class="s-input" style="flex:1;">
+          <button class="btn btn-ghost" id="rand-vid-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Add</button>
+        </div>
+        <div id="random-videos-list" style="margin-top:8px;"></div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Switch every</span>
+          <select id="rand-vid-interval" class="s-input">
+            <option value="0">On video end</option>
+            <option value="30">30 seconds</option>
+            <option value="60">1 minute</option>
+            <option value="300">5 minutes</option>
+          </select>
         </div>
       </div>
 
@@ -433,7 +453,7 @@ const DEFAULT_META={
   labels:['search','dev','media','work','social','design','ai'],
   settings:{bgType:'solid',bgColor:'#0a0a0a',gradC1:'#0a0a0a',gradC2:'#1a1a2e',
     gradDir:'to bottom right',bgImgUrl:'',randomImages:[],randInterval:0,
-    cardW:90,cardH:96,gap:20,accent:'#c8ff00'}
+    cardW:90,cardH:96,gap:20,accent:'#c8ff00',sortAlpha:false,bgVideoUrl:'',randomVideos:[],randVidInterval:0}
 };
 
 let DATA={links:[],labels:[...DEFAULT_META.labels],settings:{...DEFAULT_META.settings}};
@@ -453,7 +473,11 @@ async function loadData() {
       DATA.labels=d.labels||DEFAULT_META.labels;
       DATA.settings={...DEFAULT_META.settings,...(d.settings||{})};
     } else {
-      await setDoc(userRef(),{labels:DATA.labels,settings:DATA.settings});
+      await setDoc(userRef(),{
+        labels:DATA.labels, settings:DATA.settings,
+        approved:true, email:auth.currentUser?.email||'',
+        displayName:auth.currentUser?.displayName||''
+      },{merge:true});
     }
     const lSnap=await getDocs(linksRef());
     if(lSnap.empty){
@@ -476,7 +500,14 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async()=>{
     try {
-      await setDoc(userRef(),{labels:DATA.labels,settings:DATA.settings});
+      // Always include approved:true so rules never lock us out
+      await setDoc(userRef(),{
+        labels:DATA.labels,
+        settings:DATA.settings,
+        approved:true,
+        email: auth.currentUser?.email||'',
+        displayName: auth.currentUser?.displayName||''
+      },{merge:true});
       const batch=writeBatch(db);
       DATA.links.forEach((l,i)=>batch.set(linkRef(l.id),{...l,order:i}));
       await batch.commit();
@@ -534,6 +565,8 @@ function applyBg(){
     bgVideo.src=s.bgVideoUrl;
     bgVideo.classList.add('active');
     bgVideo.play().catch(()=>{});
+  } else if(s.bgType==='randomvideos'&&s.randomVideos&&s.randomVideos.length){
+    setRandVideo();
   } else if(s.bgType==='random'&&s.randomImages&&s.randomImages.length){
     setRandBg();
     if(s.randInterval>0) randTimer=setInterval(setRandBg,s.randInterval*1000);
@@ -544,13 +577,29 @@ function setRandBg(){
   bgLayer.className='has-image';
   bgLayer.style.backgroundImage=`url('${imgs[Math.floor(Math.random()*imgs.length)]}')`;
 }
+function setRandVideo(){
+  const vids=DATA.settings.randomVideos; if(!vids||!vids.length) return;
+  const bgVideo=document.getElementById('bg-video');
+  const interval=DATA.settings.randVidInterval||0;
+  bgLayer.className='has-video';
+  bgVideo.src=vids[Math.floor(Math.random()*vids.length)];
+  bgVideo.classList.add('active');
+  bgVideo.onended=()=>{ if(interval===0) setRandVideo(); };
+  bgVideo.play().catch(()=>{});
+  if(interval>0){ clearInterval(randTimer); randTimer=setInterval(setRandVideo,interval*1000); }
+}
 
 // ── Grid / Pages ──────────────────────────────────────────────────
 const pagesEl=document.getElementById('pages-container');
 const dotsEl=document.getElementById('page-dots');
 let curPage=0, curFilter='all', pages=[];
 
-function filteredLinks(){ return curFilter==='all'?[...DATA.links]:DATA.links.filter(l=>(l.labels||[]).includes(curFilter)); }
+function filteredLinks(){
+  const visible=DATA.links.filter(l=>pinUnlocked||!(l.labels||[]).includes(LOCKED_TAG));
+  const result=curFilter==='all'?visible:visible.filter(l=>(l.labels||[]).includes(curFilter));
+  if(DATA.settings.sortAlpha) result.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  return result;
+}
 function capacity(){
   const s=DATA.settings;
   const cols=Math.floor((pagesEl.clientWidth+s.gap)/(s.cardW+s.gap));
@@ -872,6 +921,8 @@ function syncSettingsUI(){
   document.getElementById('grad-dir').value=s.gradDir;
   document.getElementById('bg-img-url').value=s.bgImgUrl||'';
   document.getElementById('bg-video-url').value=s.bgVideoUrl||'';
+  document.getElementById('rand-vid-interval').value=s.randVidInterval||0;
+  renderRandVideoList();
   document.getElementById('rand-interval').value=s.randInterval||0;
   ['card-w','card-h','gap'].forEach(k=>{
     const map={'card-w':'cardW','card-h':'cardH','gap':'gap'};
@@ -881,10 +932,15 @@ function syncSettingsUI(){
   document.getElementById('accent-color').value=s.accent;
   document.querySelectorAll('.bg-opt').forEach(o=>o.classList.toggle('active',o.dataset.bg===s.bgType));
   showBgOpts(s.bgType); renderRandList();
-  document.getElementById('firebase-uid-display').textContent=userId||'…';
+  const userDisp = document.getElementById('firebase-user-display');
+  if(userDisp && auth.currentUser){
+    userDisp.textContent = auth.currentUser.displayName
+      ? auth.currentUser.displayName + ' (' + auth.currentUser.email + ')'
+      : auth.currentUser.email;
+  }
 }
 function showBgOpts(t){
-  ['solid','gradient','image','video','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
+  ['solid','gradient','image','video','randomvideos','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
 }
 function saveSetting(k,v){ DATA.settings[k]=v; scheduleSave(); }
 
@@ -898,6 +954,29 @@ document.getElementById('grad-c2').addEventListener('input',e=>{ saveSetting('gr
 document.getElementById('grad-dir').addEventListener('change',e=>{ saveSetting('gradDir',e.target.value); applyBg(); });
 document.getElementById('bg-img-apply').addEventListener('click',()=>{ saveSetting('bgImgUrl',document.getElementById('bg-img-url').value.trim()); applyBg(); });
 document.getElementById('bg-video-apply').addEventListener('click',()=>{ saveSetting('bgVideoUrl',document.getElementById('bg-video-url').value.trim()); applyBg(); });
+function renderRandVideoList(){
+  const list=document.getElementById('random-videos-list'); if(!list) return;
+  list.innerHTML='';
+  (DATA.settings.randomVideos||[]).forEach((url,i)=>{
+    const row=document.createElement('div'); row.className='rand-img-item';
+    row.innerHTML=`<span title="${url}">${url}</span><button>✕</button>`;
+    row.querySelector('button').addEventListener('click',()=>{
+      DATA.settings.randomVideos.splice(i,1); scheduleSave(); renderRandVideoList(); applyBg();
+    });
+    list.appendChild(row);
+  });
+}
+document.getElementById('rand-vid-add').addEventListener('click',()=>{
+  const url=document.getElementById('rand-vid-url').value.trim(); if(!url) return;
+  if(!DATA.settings.randomVideos) DATA.settings.randomVideos=[];
+  DATA.settings.randomVideos.push(url);
+  document.getElementById('rand-vid-url').value='';
+  scheduleSave(); renderRandVideoList(); applyBg();
+});
+document.getElementById('rand-vid-interval').addEventListener('change',e=>{
+  saveSetting('randVidInterval',parseInt(e.target.value)||0); applyBg();
+});
+
 document.getElementById('rand-img-add').addEventListener('click',()=>{
   const url=document.getElementById('rand-img-url').value.trim(); if(!url) return;
   if(!DATA.settings.randomImages) DATA.settings.randomImages=[];
@@ -1138,6 +1217,26 @@ async function showAdminPanel(){
 }
 
 // ── App boot ──────────────────────────────────────────────────────
+// ── Confidential lock/unlock ──────────────────────────────────────
+function updateLockBtn(){
+  const btn=document.getElementById('btn-lock'); if(!btn) return;
+  if(pinUnlocked){ btn.textContent='🔓'; btn.title='Lock confidential links'; btn.classList.add('unlocked'); }
+  else { btn.textContent='🔒'; btn.title='Unlock confidential links'; btn.classList.remove('unlocked'); }
+}
+function lockConfidential(){
+  pinUnlocked=false;
+  if(curFilter===LOCKED_TAG){ curFilter='all'; renderTagBar(); }
+  updateLockBtn(); renderAll();
+  showToast('🔒 Confidential links hidden','');
+}
+function unlockConfidential(){
+  if(!askPin()) return;
+  pinUnlocked=true;
+  if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
+  updateLockBtn(); renderAll();
+  showToast('🔓 Confidential links visible','success');
+}
+
 async function bootApp(user){
   userId = user.uid;
   const splash = document.getElementById('splash');
