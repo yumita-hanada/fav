@@ -387,6 +387,16 @@
     </div>
 
     <div class="settings-section">
+      <h3>Links</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <label style="font-size:12px;color:var(--text-muted);">Sort alphabetically (A→Z)</label>
+        <div id="toggle-sort-alpha" style="width:40px;height:22px;border-radius:99px;cursor:pointer;position:relative;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);transition:background .2s;">
+          <div id="toggle-sort-alpha-thumb" style="position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;opacity:.5;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3>Accent color</h3>
       <div class="color-row"><input type="color" id="accent-color" value="#c8ff00"><label>Highlight color</label></div>
     </div>
@@ -930,6 +940,16 @@ function syncSettingsUI(){
     document.getElementById('s-'+k+'-val').textContent=s[map[k]]+'px';
   });
   document.getElementById('accent-color').value=s.accent;
+  // Sort alpha toggle
+  const ta = document.getElementById('toggle-sort-alpha');
+  const tt = document.getElementById('toggle-sort-alpha-thumb');
+  if(ta && tt){
+    if(s.sortAlpha){
+      ta.style.background='var(--accent)'; tt.style.transform='translateX(18px)'; tt.style.opacity='1';
+    } else {
+      ta.style.background='rgba(255,255,255,.1)'; tt.style.transform='translateX(0)'; tt.style.opacity='.5';
+    }
+  }
   document.querySelectorAll('.bg-opt').forEach(o=>o.classList.toggle('active',o.dataset.bg===s.bgType));
   showBgOpts(s.bgType); renderRandList();
   const userDisp = document.getElementById('firebase-user-display');
@@ -1000,6 +1020,12 @@ function renderRandList(){
   el.addEventListener('input',()=>{ const v=parseInt(el.value); vl.textContent=v+'px'; saveSetting(map[k],v); renderAll(); });
 });
 document.getElementById('accent-color').addEventListener('input',e=>{ saveSetting('accent',e.target.value); applyCSSVars(); });
+document.getElementById('toggle-sort-alpha').addEventListener('click',()=>{
+  const val = !DATA.settings.sortAlpha;
+  saveSetting('sortAlpha', val);
+  syncSettingsUI();
+  renderAll();
+});
 
 // ── Navigation (keyboard, wheel, touch) ──────────────────────────
 document.getElementById('btn-add-link').addEventListener('click',openAddModal);
