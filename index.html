@@ -1021,6 +1021,7 @@ window.addEventListener('resize',renderAll);
 
 // ── Auth helpers ──────────────────────────────────────────────────
 const provider = new GoogleAuthProvider();
+let _inviteFlowInProgress = false; // prevents onAuthStateChanged interfering during invite
 const ADMIN_EMAIL = window.ADMIN_EMAIL || '';
 let _cachedAdmin = null;   // cache session
 
@@ -1104,25 +1105,37 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
+    _inviteFlowInProgress = true;
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+      console.log('Signed in:', user.email, user.uid);
       // Check approval
       if(await isApproved(user)){
+        _inviteFlowInProgress = false;
         bootApp(user); return;
       }
       // Try token
       if(token){
+        console.log('Consuming token:', token);
         const ok = await consumeInvite(token, user);
-        if(ok){ bootApp(user); return; }
+        console.log('Token ok:', ok);
+        if(ok){
+          _inviteFlowInProgress = false;
+          bootApp(user); return;
+        }
+        _inviteFlowInProgress = false;
         showLoginScreen('❌ Invalid or expired token.');
         await signOut(auth); return;
       }
+      _inviteFlowInProgress = false;
       showLoginScreen('⛔ Access restricted. You need an invitation token.');
       await signOut(auth);
     } catch(e){
-      console.error(e);
-      showLoginScreen('⚠ Sign-in failed. Try again.');
+      _inviteFlowInProgress = false;
+      if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request') return;
+      console.error('Auth error:', e.code, e.message);
+      showLoginScreen(`⚠ Error: ${e.code}`);
     }
   });
 }
@@ -1293,6 +1306,7 @@ async function bootApp(user){
 
 // ── Boot entry point ──────────────────────────────────────────────
 onAuthStateChanged(auth, async user=>{
+  if(_inviteFlowInProgress){ console.log('invite flow in progress, skipping onAuthStateChanged'); return; }
   if(user){
     if(await isApproved(user)){ bootApp(user); }
     else { showLoginScreen('⛔ Your account is pending approval.'); await signOut(auth); }
