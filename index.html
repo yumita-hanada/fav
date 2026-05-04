@@ -909,14 +909,28 @@ window.addEventListener('resize',renderAll);
 // ── Auth helpers ──────────────────────────────────────────────────
 const provider = new GoogleAuthProvider();
 const ADMIN_EMAIL = window.ADMIN_EMAIL || '';
+let _cachedAdmin = null;   // cache session
 
 async function isAdmin(user){
-  return user.email === ADMIN_EMAIL ||
+  if(_cachedAdmin !== null) return _cachedAdmin;
+  _cachedAdmin = (user.email === ADMIN_EMAIL) ||
     (await getDoc(doc(db,'admins',user.uid))).exists();
+  return _cachedAdmin;
 }
 
 async function isApproved(user){
-  if(await isAdmin(user)) return true;
+  if(await isAdmin(user)){
+    // Auto-approve admin in Firestore if not yet done
+    const ref = doc(db,'users',user.uid);
+    const snap = await getDoc(ref);
+    if(!snap.exists() || !snap.data().approved){
+      await setDoc(ref, {
+        approved: true, email: user.email,
+        displayName: user.displayName, createdAt: serverTimestamp()
+      }, {merge:true});
+    }
+    return true;
+  }
   const snap = await getDoc(doc(db,'users',user.uid));
   return snap.exists() && snap.data().approved === true;
 }
@@ -1113,13 +1127,25 @@ async function bootApp(user){
   showToast(`Welcome ${user.displayName||user.email} 👋`,'success');
 
   document.getElementById('label-bar').classList.add('hidden');
-  document.getElementById('btn-toggle-tags').addEventListener('click', () => {
-    const bar = document.getElementById('label-bar');
-    const btn = document.getElementById('btn-toggle-tags');
-    bar.classList.toggle('hidden');
-    btn.classList.toggle('active');
-    btn.textContent = bar.classList.contains('hidden') ? '⊟' : '⊞';
-  });
+  // Use once-only listener to avoid duplicates on re-auth
+  const toggleBtn = document.getElementById('btn-toggle-tags');
+  if(!toggleBtn._bound){
+    toggleBtn._bound = true;
+    toggleBtn.addEventListener('click', () => {
+      const bar = document.getElementById('label-bar');
+      bar.classList.toggle('hidden');
+      toggleBtn.classList.toggle('active');
+      toggleBtn.textContent = bar.classList.contains('hidden') ? '⊟' : '⊞';
+    });
+  }
+  // Same for lock button
+  const lockBtn = document.getElementById('btn-lock');
+  if(lockBtn && !lockBtn._bound){
+    lockBtn._bound = true;
+    lockBtn.addEventListener('click', () => {
+      if(pinUnlocked){ lockConfidential(); } else { unlockConfidential(); }
+    });
+  }
 }
 
 // ── Boot entry point ──────────────────────────────────────────────
