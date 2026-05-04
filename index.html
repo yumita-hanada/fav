@@ -413,7 +413,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider,
          signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
-         collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
+         collection, getDocs, onSnapshot, writeBatch, serverTimestamp, updateDoc }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app  = initializeApp(firebaseConfig);
@@ -1046,9 +1046,9 @@ async function consumeInvite(token, user){
   const d = snap.data();
   if(d.used) return false;
   if(d.expiresAt && d.expiresAt.toMillis() < Date.now()) return false;
-  // Mark used
-  await setDoc(ref, {...d, used:true, usedBy:user.uid, usedAt:serverTimestamp()});
-  // Approve user
+  // Mark used — updateDoc only changes these fields, doesn't recreate the doc
+  await updateDoc(ref, { used:true, usedBy:user.uid, usedAt:serverTimestamp() });
+  // Approve user — setDoc with merge is fine here (creates or updates)
   await setDoc(doc(db,'users',user.uid), {
     approved: true, email: user.email,
     displayName: user.displayName, createdAt: serverTimestamp()
