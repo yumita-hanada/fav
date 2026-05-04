@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>startpage</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖥️</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
 
@@ -210,9 +210,6 @@
 
   #settings-box::-webkit-scrollbar { width:4px; }
   #settings-box::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:4px; }
-  /* Lock button */
-  #btn-lock { font-size:15px; }
-  #btn-lock.unlocked { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
   
   /* Tag bar toggle */
   #label-bar { transition: max-height .3s ease, opacity .3s ease, padding .3s ease; max-height: 60px; overflow: visible; }
@@ -238,10 +235,10 @@
   <div id="topbar">
     <div id="label-bar">
       <div class="label-chip active" data-label="all">All</div>
+      <button id="lbl-add-btn">+ tag</button>
     </div>
     <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync"></div>
-      <div class="icon-btn" id="btn-lock" title="Unlock confidential links">🔒</div>
       <div class="icon-btn" id="btn-toggle-tags" title="Toggle tags">⊟</div>
       <div class="icon-btn" id="btn-add-link" title="Add link">＋</div>
       <div class="icon-btn" id="btn-settings" title="Settings">⚙</div>
@@ -369,10 +366,11 @@ const firebaseConfig = window.FIREBASE_CONFIG;
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, signInAnonymously, onAuthStateChanged }
+import { getAuth, signInWithPopup, GoogleAuthProvider,
+         signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
-         collection, getDocs, onSnapshot, writeBatch }
+         collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app  = initializeApp(firebaseConfig);
@@ -520,11 +518,7 @@ const pagesEl=document.getElementById('pages-container');
 const dotsEl=document.getElementById('page-dots');
 let curPage=0, curFilter='all', pages=[];
 
-function filteredLinks(){
-  const visible = DATA.links.filter(l => pinUnlocked || !(l.labels||[]).includes(LOCKED_TAG));
-  if(curFilter==='all') return visible;
-  return visible.filter(l=>(l.labels||[]).includes(curFilter));
-}
+function filteredLinks(){ return curFilter==='all'?[...DATA.links]:DATA.links.filter(l=>(l.labels||[]).includes(curFilter)); }
 function capacity(){
   const s=DATA.settings;
   const cols=Math.floor((pagesEl.clientWidth+s.gap)/(s.cardW+s.gap));
@@ -809,6 +803,18 @@ function renderTagBar(){
     chip.appendChild(del); bar.appendChild(chip);
   });
 
+  // Add 🔒 tag button if not yet created
+  if(!DATA.labels.includes(LOCKED_TAG)){
+    const lockBtn=document.createElement('div');
+    lockBtn.className='label-chip'; lockBtn.textContent='+ 🔒';
+    lockBtn.style.cssText='opacity:.4;font-size:11px;';
+    lockBtn.addEventListener('click',()=>{
+      if(!askPin()) return;
+      DATA.labels.push(LOCKED_TAG); scheduleSave(); renderTagBar();
+    });
+    bar.appendChild(lockBtn);
+  }
+
   const addBtn=document.createElement('button'); addBtn.id='lbl-add-btn'; addBtn.textContent='+ tag';
   addBtn.addEventListener('click',()=>{
     const n=(prompt('New tag name:')||'').trim().toLowerCase();
@@ -900,65 +906,230 @@ document.addEventListener('wheel',e=>{
 },{passive:true});
 window.addEventListener('resize',renderAll);
 
-// ── Boot ──────────────────────────────────────────────────────────
-onAuthStateChanged(auth, async user=>{
-  const splashSt=document.getElementById('splash-status');
-  if(user){
-    userId=user.uid;
-    splashSt.textContent='Loading data…';
-    await loadData();
-    applyBg(); applyCSSVars(); renderTagBar(); renderAll();
-    startRealtime();
-    const splash=document.getElementById('splash');
-    splash.classList.add('hidden');
-    setTimeout(()=>splash.remove(),500);
-    showToast('🔥 Firebase connected','success');
-  } else {
-    splashSt.textContent='Anonymous sign-in…';
-    signInAnonymously(auth).catch(err=>{
-      splashSt.textContent='⚠ Failed — check your firebaseConfig';
-      console.error('Auth error:',err);
+// ── Auth helpers ──────────────────────────────────────────────────
+const provider = new GoogleAuthProvider();
+const ADMIN_EMAIL = window.ADMIN_EMAIL || '';
+
+async function isAdmin(user){
+  return user.email === ADMIN_EMAIL ||
+    (await getDoc(doc(db,'admins',user.uid))).exists();
+}
+
+async function isApproved(user){
+  if(await isAdmin(user)) return true;
+  const snap = await getDoc(doc(db,'users',user.uid));
+  return snap.exists() && snap.data().approved === true;
+}
+
+async function consumeInvite(token, user){
+  const ref = doc(db,'invites',token);
+  const snap = await getDoc(ref);
+  if(!snap.exists()) return false;
+  const d = snap.data();
+  if(d.used) return false;
+  if(d.expiresAt && d.expiresAt.toMillis() < Date.now()) return false;
+  // Mark used
+  await setDoc(ref, {...d, used:true, usedBy:user.uid, usedAt:serverTimestamp()});
+  // Approve user
+  await setDoc(doc(db,'users',user.uid), {
+    approved: true, email: user.email,
+    displayName: user.displayName, createdAt: serverTimestamp()
+  }, {merge:true});
+  return true;
+}
+
+// ── Login screen ──────────────────────────────────────────────────
+function showLoginScreen(msg=''){
+  const splash = document.getElementById('splash');
+  splash.innerHTML = `
+    <div class="splash-logo">⬡ startpage</div>
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;width:320px;">
+      ${msg ? `<div style="font-size:12px;color:#ff6060;text-align:center;">${msg}</div>` : ''}
+      <button id="btn-google-signin" style="
+        display:flex;align-items:center;gap:10px;
+        background:#fff;color:#222;border:none;border-radius:12px;
+        padding:12px 22px;font-size:14px;font-weight:500;cursor:pointer;
+        font-family:var(--font);width:100%;justify-content:center;
+        box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:opacity .15s;">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.2 30.2 0 24 0 14.7 0 6.7 5.4 2.9 13.3l7.9 6.1C12.6 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.5 2.9-2.2 5.4-4.7 7l7.3 5.7c4.3-4 6.8-9.9 7.2-16.7z"/><path fill="#FBBC05" d="M10.8 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.3-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.9 2.2-6.1 0-11.3-3.7-13.2-9l-8.3 6.2C6.7 42.6 14.7 48 24 48z"/></svg>
+        Sign in with Google
+      </button>
+      <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.6;">
+        Access is by invitation only.<br>If you have an invitation token, sign in first.
+      </div>
+      <div style="display:flex;gap:8px;width:100%;">
+        <input id="invite-token-input" type="text" placeholder="Invitation token (optional)"
+          style="flex:1;border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.07);
+          border:1px solid rgba(255,255,255,.15);color:var(--text);font-family:var(--font);
+          font-size:13px;outline:none;">
+      </div>
+    </div>`;
+
+  document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
+    const token = (document.getElementById('invite-token-input').value||'').trim();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      // Check approval
+      if(await isApproved(user)){
+        bootApp(user); return;
+      }
+      // Try token
+      if(token){
+        const ok = await consumeInvite(token, user);
+        if(ok){ bootApp(user); return; }
+        showLoginScreen('❌ Invalid or expired token.');
+        await signOut(auth); return;
+      }
+      showLoginScreen('⛔ Access restricted. You need an invitation token.');
+      await signOut(auth);
+    } catch(e){
+      console.error(e);
+      showLoginScreen('⚠ Sign-in failed. Try again.');
+    }
+  });
+}
+
+// ── Admin panel ───────────────────────────────────────────────────
+async function showAdminPanel(){
+  const panel = document.createElement('div');
+  panel.id = 'admin-panel';
+  panel.style.cssText = `position:fixed;inset:0;z-index:950;background:rgba(0,0,0,.8);
+    backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;`;
+
+  panel.innerHTML = `
+    <div style="background:rgba(16,16,16,.98);border:1px solid rgba(255,255,255,.1);
+      border-radius:24px;padding:28px;width:520px;max-height:80vh;overflow-y:auto;
+      display:flex;flex-direction:column;gap:18px;box-shadow:0 24px 60px rgba(0,0,0,.7);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="font-size:16px;font-weight:500;">👑 Admin panel</h2>
+        <div id="admin-close" style="cursor:pointer;color:rgba(255,255,255,.4);font-size:20px;">✕</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);">Generate invitation</div>
+        <div style="display:flex;gap:8px;">
+          <select id="inv-expiry" style="border-radius:10px;padding:9px 12px;background:#1e1e1e;
+            border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.88);font-family:inherit;font-size:13px;outline:none;flex:1;">
+            <option value="24">Expires in 24h</option>
+            <option value="72">Expires in 72h</option>
+            <option value="168">Expires in 7 days</option>
+            <option value="0">No expiry</option>
+          </select>
+          <button id="btn-gen-invite" style="background:var(--accent);color:#000;border:none;
+            border-radius:10px;padding:9px 18px;font-family:inherit;font-size:13px;
+            font-weight:500;cursor:pointer;">Generate</button>
+        </div>
+        <div id="invite-result" style="font-size:12px;color:var(--accent);word-break:break-all;
+          background:rgba(200,255,0,.07);border-radius:8px;padding:10px 12px;display:none;"></div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);">Users</div>
+        <div id="admin-users-list" style="display:flex;flex-direction:column;gap:6px;font-size:13px;">
+          <div style="color:rgba(255,255,255,.3);">Loading…</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(panel);
+  panel.querySelector('#admin-close').addEventListener('click',()=>panel.remove());
+  panel.addEventListener('click',e=>{ if(e.target===panel) panel.remove(); });
+
+  // Load users
+  const usersSnap = await getDocs(collection(db,'users'));
+  const listEl = panel.querySelector('#admin-users-list');
+  listEl.innerHTML = '';
+  usersSnap.forEach(d=>{
+    const u = d.data();
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.04);border-radius:8px;padding:8px 12px;';
+    row.innerHTML = `
+      <div style="flex:1;">
+        <div style="color:rgba(255,255,255,.88);">${u.displayName||'—'}</div>
+        <div style="color:rgba(255,255,255,.4);font-size:11px;">${u.email||d.id}</div>
+      </div>
+      <div style="font-size:11px;padding:3px 8px;border-radius:6px;
+        background:${u.approved?'rgba(200,255,0,.12)':'rgba(255,60,60,.12)'};
+        color:${u.approved?'var(--accent)':'#ff6060'};">
+        ${u.approved?'approved':'pending'}
+      </div>
+      ${u.approved?`<button data-uid="${d.id}" class="btn-revoke" style="background:none;border:1px solid rgba(255,60,60,.4);color:#ff6060;border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;">Revoke</button>`:''}`;
+    listEl.appendChild(row);
+  });
+  listEl.querySelectorAll('.btn-revoke').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const uid = btn.dataset.uid;
+      await setDoc(doc(db,'users',uid),{approved:false},{merge:true});
+      showToast('User revoked','success'); panel.remove(); showAdminPanel();
     });
+  });
+
+  // Generate invite
+  panel.querySelector('#btn-gen-invite').addEventListener('click', async ()=>{
+    const hours = parseInt(panel.querySelector('#inv-expiry').value);
+    const token = Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,10);
+    const data = { used:false, createdAt:serverTimestamp(),
+      expiresAt: hours>0 ? new Date(Date.now()+hours*3600000) : null };
+    await setDoc(doc(db,'invites',token), data);
+    const resEl = panel.querySelector('#invite-result');
+    resEl.style.display='block';
+    resEl.innerHTML = `Token: <strong>${token}</strong><br>
+      <span style="opacity:.6;font-size:11px;">Share this token with the user — valid ${hours>0?hours+'h':'forever'}</span>`;
+  });
+}
+
+// ── App boot ──────────────────────────────────────────────────────
+async function bootApp(user){
+  userId = user.uid;
+  const splash = document.getElementById('splash');
+  if(splash){ splash.querySelector('.splash-status') && (splash.querySelector('.splash-status').textContent='Loading data…'); }
+  await loadData();
+  applyBg(); applyCSSVars(); renderTagBar(); renderAll();
+  startRealtime();
+  if(splash){ splash.classList.add('hidden'); setTimeout(()=>splash.remove(),500); }
+
+  // Add sign-out + admin buttons to settings
+  const sClose = document.getElementById('s-close');
+  if(sClose && !document.getElementById('btn-signout')){
+    const row = document.createElement('div');
+    row.style.cssText='display:flex;gap:10px;align-items:center;justify-content:space-between;';
+    row.innerHTML=`
+      <div style="font-size:12px;color:rgba(255,255,255,.4);">
+        ${user.displayName||user.email}
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${await isAdmin(user)?'<button id="btn-admin" class="btn btn-ghost" style="font-size:12px;padding:7px 14px;">👑 Admin</button>':''}
+        <button id="btn-signout" class="btn btn-ghost" style="font-size:12px;padding:7px 14px;">Sign out</button>
+      </div>`;
+    sClose.parentNode.insertBefore(row, sClose.parentNode.firstChild);
+    document.getElementById('btn-signout').addEventListener('click', async ()=>{
+      await signOut(auth); location.reload();
+    });
+    const adminBtn = document.getElementById('btn-admin');
+    if(adminBtn) adminBtn.addEventListener('click',()=>{ closeSettings(); showAdminPanel(); });
   }
-});
 
-document.getElementById('label-bar').classList.add('hidden');
+  showToast(`Welcome ${user.displayName||user.email} 👋`,'success');
 
-document.getElementById('btn-toggle-tags').addEventListener('click', () => {
-  const bar = document.getElementById('label-bar');
-  const btn = document.getElementById('btn-toggle-tags');
-  bar.classList.toggle('hidden');
-  btn.classList.toggle('active');
-  btn.textContent = bar.classList.contains('hidden') ? '⊟' : '⊞';
-});
+  document.getElementById('label-bar').classList.add('hidden');
+  document.getElementById('btn-toggle-tags').addEventListener('click', () => {
+    const bar = document.getElementById('label-bar');
+    const btn = document.getElementById('btn-toggle-tags');
+    bar.classList.toggle('hidden');
+    btn.classList.toggle('active');
+    btn.textContent = bar.classList.contains('hidden') ? '⊟' : '⊞';
+  });
+}
 
-// ── Confidential lock/unlock ──────────────────────────────────────
-function updateLockBtn(){
-  const btn = document.getElementById('btn-lock');
-  if(!btn) return;
-  if(pinUnlocked){
-    btn.textContent='🔓'; btn.title='Lock confidential links';
-    btn.classList.add('unlocked');
+// ── Boot entry point ──────────────────────────────────────────────
+onAuthStateChanged(auth, async user=>{
+  if(user){
+    if(await isApproved(user)){ bootApp(user); }
+    else { showLoginScreen('⛔ Your account is pending approval.'); await signOut(auth); }
   } else {
-    btn.textContent='🔒'; btn.title='Unlock confidential links';
-    btn.classList.remove('unlocked');
+    showLoginScreen();
   }
-}
-function lockConfidential(){
-  pinUnlocked = false;
-  if(curFilter === LOCKED_TAG){ curFilter = 'all'; renderTagBar(); }
-  updateLockBtn(); renderAll();
-  showToast('🔒 Confidential links hidden', '');
-}
-function unlockConfidential(){
-  if(!askPin()) return;
-  pinUnlocked = true;
-  if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
-  updateLockBtn(); renderAll();
-  showToast('🔓 Confidential links visible', 'success');
-}
-document.getElementById('btn-lock').addEventListener('click', () => {
-  if(pinUnlocked){ lockConfidential(); } else { unlockConfidential(); }
 });
 </script>
 </body>
