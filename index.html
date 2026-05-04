@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>startpage</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
 
@@ -57,6 +57,15 @@
   #bg-layer.has-image { background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
   #bg-overlay { position:fixed; inset:0; z-index:1; background:rgba(0,0,0,.35); pointer-events:none; opacity:0; transition:opacity .4s; }
   #bg-layer.has-image ~ #bg-overlay { opacity:1; }
+  #bg-layer.has-video ~ #bg-overlay { opacity:1; }
+  /* Video background */
+  #bg-video {
+    position:fixed; inset:0; z-index:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    display:none;
+  }
+  #bg-video.active { display:block; }
 
   /* ── LAYOUT ─────────────────────────────────────── */
   #app { position:relative; z-index:2; width:100%; height:100%; display:flex; flex-direction:column; }
@@ -217,8 +226,6 @@
 
   /* Toggle button active state */
   #btn-toggle-tags.active { color: var(--text); border-color: rgba(255,255,255,.25); }
-  #btn-lock { font-size:15px; }
-  #btn-lock.unlocked { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
 </style>
 </head>
 <body>
@@ -231,6 +238,7 @@
 </div>
 
 <div id="bg-layer"></div>
+<video id="bg-video" autoplay muted loop playsinline></video>
 <div id="bg-overlay"></div>
 
 <div id="app">
@@ -241,7 +249,6 @@
     </div>
     <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync"></div>
-      <div class="icon-btn" id="btn-lock" title="Unlock confidential links">🔒</div>
       <div class="icon-btn" id="btn-toggle-tags" title="Toggle tags">⊟</div>
       <div class="icon-btn" id="btn-add-link" title="Add link">＋</div>
       <div class="icon-btn" id="btn-settings" title="Settings">⚙</div>
@@ -293,6 +300,7 @@
         <div class="bg-opt active" data-bg="solid">Solid color</div>
         <div class="bg-opt" data-bg="gradient">Gradient</div>
         <div class="bg-opt" data-bg="image">Fixed image</div>
+        <div class="bg-opt" data-bg="video">Video (mp4)</div>
         <div class="bg-opt" data-bg="random">Random images</div>
       </div>
 
@@ -318,6 +326,17 @@
         <div class="img-url-row">
           <input type="url" id="bg-img-url" placeholder="https://… or local path" class="s-input" style="flex:1;">
           <button class="btn btn-ghost" id="bg-img-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Apply</button>
+        </div>
+      </div>
+
+      <div id="bg-video-opts" style="display:none">
+        <div class="img-url-row">
+          <input type="url" id="bg-video-url" placeholder="https://… .mp4 URL" class="s-input" style="flex:1;">
+          <button class="btn btn-ghost" id="bg-video-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Apply</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.6;">
+          Supports mp4 URLs. Video plays muted &amp; looped.<br>
+          Tip: use a direct .mp4 link (Dropbox, GitHub raw, etc.)
         </div>
       </div>
 
@@ -495,7 +514,12 @@ let randTimer=null;
 function applyBg(){
   const s=DATA.settings;
   clearInterval(randTimer);
+  // Reset video
+  const bgVideo = document.getElementById('bg-video');
+  bgVideo.classList.remove('active');
+  bgVideo.pause(); bgVideo.src='';
   bgLayer.className=''; bgLayer.style.background=''; bgLayer.style.backgroundImage='';
+
   if(s.bgType==='solid'){
     bgLayer.style.background=s.bgColor;
     document.documentElement.style.setProperty('--bg',s.bgColor);
@@ -505,6 +529,11 @@ function applyBg(){
       :`linear-gradient(${s.gradDir},${s.gradC1},${s.gradC2})`;
   } else if(s.bgType==='image'){
     bgLayer.className='has-image'; bgLayer.style.backgroundImage=`url('${s.bgImgUrl}')`;
+  } else if(s.bgType==='video' && s.bgVideoUrl){
+    bgLayer.className='has-video';
+    bgVideo.src=s.bgVideoUrl;
+    bgVideo.classList.add('active');
+    bgVideo.play().catch(()=>{});
   } else if(s.bgType==='random'&&s.randomImages&&s.randomImages.length){
     setRandBg();
     if(s.randInterval>0) randTimer=setInterval(setRandBg,s.randInterval*1000);
@@ -521,11 +550,7 @@ const pagesEl=document.getElementById('pages-container');
 const dotsEl=document.getElementById('page-dots');
 let curPage=0, curFilter='all', pages=[];
 
-function filteredLinks(){
-  const visible = DATA.links.filter(l => pinUnlocked || !(l.labels||[]).includes(LOCKED_TAG));
-  if(curFilter==='all') return visible;
-  return visible.filter(l=>(l.labels||[]).includes(curFilter));
-}
+function filteredLinks(){ return curFilter==='all'?[...DATA.links]:DATA.links.filter(l=>(l.labels||[]).includes(curFilter)); }
 function capacity(){
   const s=DATA.settings;
   const cols=Math.floor((pagesEl.clientWidth+s.gap)/(s.cardW+s.gap));
@@ -846,6 +871,7 @@ function syncSettingsUI(){
   document.getElementById('grad-c2').value=s.gradC2;
   document.getElementById('grad-dir').value=s.gradDir;
   document.getElementById('bg-img-url').value=s.bgImgUrl||'';
+  document.getElementById('bg-video-url').value=s.bgVideoUrl||'';
   document.getElementById('rand-interval').value=s.randInterval||0;
   ['card-w','card-h','gap'].forEach(k=>{
     const map={'card-w':'cardW','card-h':'cardH','gap':'gap'};
@@ -858,7 +884,7 @@ function syncSettingsUI(){
   document.getElementById('firebase-uid-display').textContent=userId||'…';
 }
 function showBgOpts(t){
-  ['solid','gradient','image','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
+  ['solid','gradient','image','video','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
 }
 function saveSetting(k,v){ DATA.settings[k]=v; scheduleSave(); }
 
@@ -871,6 +897,7 @@ document.getElementById('grad-c1').addEventListener('input',e=>{ saveSetting('gr
 document.getElementById('grad-c2').addEventListener('input',e=>{ saveSetting('gradC2',e.target.value); applyBg(); });
 document.getElementById('grad-dir').addEventListener('change',e=>{ saveSetting('gradDir',e.target.value); applyBg(); });
 document.getElementById('bg-img-apply').addEventListener('click',()=>{ saveSetting('bgImgUrl',document.getElementById('bg-img-url').value.trim()); applyBg(); });
+document.getElementById('bg-video-apply').addEventListener('click',()=>{ saveSetting('bgVideoUrl',document.getElementById('bg-video-url').value.trim()); applyBg(); });
 document.getElementById('rand-img-add').addEventListener('click',()=>{
   const url=document.getElementById('rand-img-url').value.trim(); if(!url) return;
   if(!DATA.settings.randomImages) DATA.settings.randomImages=[];
@@ -1098,33 +1125,6 @@ async function showAdminPanel(){
     resEl.innerHTML = `Token: <strong>${token}</strong><br>
       <span style="opacity:.6;font-size:11px;">Share this token with the user — valid ${hours>0?hours+'h':'forever'}</span>`;
   });
-}
-
-// ── App boot ──────────────────────────────────────────────────────
-// ── Confidential lock/unlock ──────────────────────────────────────
-function updateLockBtn(){
-  const btn = document.getElementById('btn-lock');
-  if(!btn) return;
-  if(pinUnlocked){
-    btn.textContent='🔓'; btn.title='Lock confidential links';
-    btn.classList.add('unlocked');
-  } else {
-    btn.textContent='🔒'; btn.title='Unlock confidential links';
-    btn.classList.remove('unlocked');
-  }
-}
-function lockConfidential(){
-  pinUnlocked = false;
-  if(curFilter === LOCKED_TAG){ curFilter = 'all'; renderTagBar(); }
-  updateLockBtn(); renderAll();
-  showToast('🔒 Confidential links hidden', '');
-}
-function unlockConfidential(){
-  if(!askPin()) return;
-  pinUnlocked = true;
-  if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
-  updateLockBtn(); renderAll();
-  showToast('🔓 Confidential links visible', 'success');
 }
 
 // ── App boot ──────────────────────────────────────────────────────
