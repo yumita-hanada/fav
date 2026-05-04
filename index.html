@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>startpage</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💻</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
 
@@ -226,8 +226,6 @@
 
   /* Toggle button active state */
   #btn-toggle-tags.active { color: var(--text); border-color: rgba(255,255,255,.25); }
-  #btn-lock { font-size:15px; }
-  #btn-lock.unlocked { color:var(--accent); border-color:var(--accent); background:var(--accent-dim); }
 </style>
 </head>
 <body>
@@ -251,7 +249,6 @@
     </div>
     <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync"></div>
-      <div class="icon-btn" id="btn-lock" title="Unlock confidential links">🔒</div>
       <div class="icon-btn" id="btn-toggle-tags" title="Toggle tags">⊟</div>
       <div class="icon-btn" id="btn-add-link" title="Add link">＋</div>
       <div class="icon-btn" id="btn-settings" title="Settings">⚙</div>
@@ -304,7 +301,6 @@
         <div class="bg-opt" data-bg="gradient">Gradient</div>
         <div class="bg-opt" data-bg="image">Fixed image</div>
         <div class="bg-opt" data-bg="video">Video (mp4)</div>
-        <div class="bg-opt" data-bg="randomvideos">Random videos</div>
         <div class="bg-opt" data-bg="random">Random images</div>
       </div>
 
@@ -341,23 +337,6 @@
         <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.6;">
           Supports mp4 URLs. Video plays muted &amp; looped.<br>
           Tip: use a direct .mp4 link (Dropbox, GitHub raw, etc.)
-        </div>
-      </div>
-
-      <div id="bg-randomvideos-opts" style="display:none">
-        <div class="img-url-row">
-          <input type="url" id="rand-vid-url" placeholder="https://… .mp4 URL" class="s-input" style="flex:1;">
-          <button class="btn btn-ghost" id="rand-vid-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Add</button>
-        </div>
-        <div id="random-videos-list" style="margin-top:8px;"></div>
-        <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Switch every</span>
-          <select id="rand-vid-interval" class="s-input">
-            <option value="0">On video end</option>
-            <option value="30">30 seconds</option>
-            <option value="60">1 minute</option>
-            <option value="300">5 minutes</option>
-          </select>
         </div>
       </div>
 
@@ -413,7 +392,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider,
          signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
-         collection, getDocs, onSnapshot, writeBatch, serverTimestamp, updateDoc }
+         collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 const app  = initializeApp(firebaseConfig);
@@ -454,7 +433,7 @@ const DEFAULT_META={
   labels:['search','dev','media','work','social','design','ai'],
   settings:{bgType:'solid',bgColor:'#0a0a0a',gradC1:'#0a0a0a',gradC2:'#1a1a2e',
     gradDir:'to bottom right',bgImgUrl:'',randomImages:[],randInterval:0,
-    cardW:90,cardH:96,gap:20,accent:'#c8ff00',sortAlpha:false,bgVideoUrl:'',randomVideos:[],randVidInterval:0}
+    cardW:90,cardH:96,gap:20,accent:'#c8ff00'}
 };
 
 let DATA={links:[],labels:[...DEFAULT_META.labels],settings:{...DEFAULT_META.settings}};
@@ -555,8 +534,6 @@ function applyBg(){
     bgVideo.src=s.bgVideoUrl;
     bgVideo.classList.add('active');
     bgVideo.play().catch(()=>{});
-  } else if(s.bgType==='randomvideos'&&s.randomVideos&&s.randomVideos.length){
-    setRandVideo();
   } else if(s.bgType==='random'&&s.randomImages&&s.randomImages.length){
     setRandBg();
     if(s.randInterval>0) randTimer=setInterval(setRandBg,s.randInterval*1000);
@@ -567,35 +544,13 @@ function setRandBg(){
   bgLayer.className='has-image';
   bgLayer.style.backgroundImage=`url('${imgs[Math.floor(Math.random()*imgs.length)]}')`;
 }
-function setRandVideo(){
-  const vids=DATA.settings.randomVideos; if(!vids||!vids.length) return;
-  const bgVideo=document.getElementById('bg-video');
-  const interval=DATA.settings.randVidInterval||0;
-  const idx = Math.floor(Math.random()*vids.length);
-  bgLayer.className='has-video';
-  bgVideo.src=vids[idx];
-  bgVideo.classList.add('active');
-  bgVideo.onended=()=>{
-    if(interval===0) setRandVideo(); // play next on end
-  };
-  bgVideo.play().catch(()=>{});
-  if(interval>0){
-    clearInterval(randTimer);
-    randTimer=setInterval(setRandVideo, interval*1000);
-  }
-}
 
 // ── Grid / Pages ──────────────────────────────────────────────────
 const pagesEl=document.getElementById('pages-container');
 const dotsEl=document.getElementById('page-dots');
 let curPage=0, curFilter='all', pages=[];
 
-function filteredLinks(){
-  const visible=DATA.links.filter(l=>pinUnlocked||!(l.labels||[]).includes(LOCKED_TAG));
-  const result=curFilter==='all'?visible:visible.filter(l=>(l.labels||[]).includes(curFilter));
-  if(DATA.settings.sortAlpha) result.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
-  return result;
-}
+function filteredLinks(){ return curFilter==='all'?[...DATA.links]:DATA.links.filter(l=>(l.labels||[]).includes(curFilter)); }
 function capacity(){
   const s=DATA.settings;
   const cols=Math.floor((pagesEl.clientWidth+s.gap)/(s.cardW+s.gap));
@@ -917,8 +872,6 @@ function syncSettingsUI(){
   document.getElementById('grad-dir').value=s.gradDir;
   document.getElementById('bg-img-url').value=s.bgImgUrl||'';
   document.getElementById('bg-video-url').value=s.bgVideoUrl||'';
-  document.getElementById('rand-vid-interval').value=s.randVidInterval||0;
-  renderRandVideoList();
   document.getElementById('rand-interval').value=s.randInterval||0;
   ['card-w','card-h','gap'].forEach(k=>{
     const map={'card-w':'cardW','card-h':'cardH','gap':'gap'};
@@ -931,7 +884,7 @@ function syncSettingsUI(){
   document.getElementById('firebase-uid-display').textContent=userId||'…';
 }
 function showBgOpts(t){
-  ['solid','gradient','image','video','randomvideos','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
+  ['solid','gradient','image','video','random'].forEach(x=>document.getElementById('bg-'+x+'-opts').style.display=t===x?'':'none');
 }
 function saveSetting(k,v){ DATA.settings[k]=v; scheduleSave(); }
 
@@ -945,29 +898,6 @@ document.getElementById('grad-c2').addEventListener('input',e=>{ saveSetting('gr
 document.getElementById('grad-dir').addEventListener('change',e=>{ saveSetting('gradDir',e.target.value); applyBg(); });
 document.getElementById('bg-img-apply').addEventListener('click',()=>{ saveSetting('bgImgUrl',document.getElementById('bg-img-url').value.trim()); applyBg(); });
 document.getElementById('bg-video-apply').addEventListener('click',()=>{ saveSetting('bgVideoUrl',document.getElementById('bg-video-url').value.trim()); applyBg(); });
-function renderRandVideoList(){
-  const list=document.getElementById('random-videos-list'); if(!list) return;
-  list.innerHTML='';
-  (DATA.settings.randomVideos||[]).forEach((url,i)=>{
-    const row=document.createElement('div'); row.className='rand-img-item';
-    row.innerHTML=`<span title="${url}">${url}</span><button>✕</button>`;
-    row.querySelector('button').addEventListener('click',()=>{
-      DATA.settings.randomVideos.splice(i,1); scheduleSave(); renderRandVideoList(); applyBg();
-    });
-    list.appendChild(row);
-  });
-}
-document.getElementById('rand-vid-add').addEventListener('click',()=>{
-  const url=document.getElementById('rand-vid-url').value.trim(); if(!url) return;
-  if(!DATA.settings.randomVideos) DATA.settings.randomVideos=[];
-  DATA.settings.randomVideos.push(url);
-  document.getElementById('rand-vid-url').value='';
-  scheduleSave(); renderRandVideoList(); applyBg();
-});
-document.getElementById('rand-vid-interval').addEventListener('change',e=>{
-  saveSetting('randVidInterval',parseInt(e.target.value)||0); applyBg();
-});
-
 document.getElementById('rand-img-add').addEventListener('click',()=>{
   const url=document.getElementById('rand-img-url').value.trim(); if(!url) return;
   if(!DATA.settings.randomImages) DATA.settings.randomImages=[];
@@ -1012,7 +942,6 @@ window.addEventListener('resize',renderAll);
 
 // ── Auth helpers ──────────────────────────────────────────────────
 const provider = new GoogleAuthProvider();
-let _inviteFlowInProgress = false; // prevents onAuthStateChanged from signing out during invite
 const ADMIN_EMAIL = window.ADMIN_EMAIL || '';
 let _cachedAdmin = null;   // cache session
 
@@ -1043,17 +972,27 @@ async function isApproved(user){
 async function consumeInvite(token, user){
   const ref = doc(db,'invites',token);
   const snap = await getDoc(ref);
-  if(!snap.exists()) return false;
+  if(!snap.exists()){ console.error('Token not found'); return false; }
   const d = snap.data();
-  if(d.used) return false;
-  if(d.expiresAt && d.expiresAt.toMillis() < Date.now()) return false;
-  // Mark used — updateDoc only changes these fields, doesn't recreate the doc
-  await updateDoc(ref, { used:true, usedBy:user.uid, usedAt:serverTimestamp() });
-  // Approve user — setDoc with merge is fine here (creates or updates)
+  if(d.used){ console.error('Token already used'); return false; }
+  if(d.expiresAt && d.expiresAt.toMillis() < Date.now()){ console.error('Token expired'); return false; }
+
+  // First create/update user doc with approved:true BEFORE marking invite used
+  // This ensures the user doc exists before any rules check
   await setDoc(doc(db,'users',user.uid), {
-    approved: true, email: user.email,
-    displayName: user.displayName, createdAt: serverTimestamp()
+    approved: true,
+    email: user.email,
+    displayName: user.displayName || '',
+    createdAt: serverTimestamp(),
+    labels: [],
+    settings: {...DEFAULT_META.settings}
   }, {merge:true});
+  console.log('✅ User doc created/updated with approved:true');
+
+  // Then mark invite as used
+  await setDoc(ref, {...d, used:true, usedBy:user.uid, usedAt:serverTimestamp()});
+  console.log('✅ Invite marked as used');
+
   return true;
 }
 
@@ -1074,7 +1013,7 @@ function showLoginScreen(msg=''){
         Sign in with Google
       </button>
       <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.6;">
-        Access is by invitation only.<br>Enter your invitation token below, then sign in.
+        Access is by invitation only.<br>If you have an invitation token, sign in first.
       </div>
       <div style="display:flex;gap:8px;width:100%;">
         <input id="invite-token-input" type="text" placeholder="Invitation token (optional)"
@@ -1086,42 +1025,25 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
-    const btn = document.getElementById('btn-google-signin');
-    btn.style.opacity = '.5'; btn.style.pointerEvents = 'none';
-    _inviteFlowInProgress = true; // block onAuthStateChanged from signing out
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
-      console.log('Signed in as:', user.email, user.uid);
-      // Already approved?
+      // Check approval
       if(await isApproved(user)){
-        _inviteFlowInProgress = false;
         bootApp(user); return;
       }
-      // Try invite token
+      // Try token
       if(token){
-        console.log('Trying token:', token);
         const ok = await consumeInvite(token, user);
-        console.log('Token result:', ok);
-        if(ok){
-          _inviteFlowInProgress = false;
-          bootApp(user); return;
-        }
-        _inviteFlowInProgress = false;
+        if(ok){ bootApp(user); return; }
         showLoginScreen('❌ Invalid or expired token.');
         await signOut(auth); return;
       }
-      _inviteFlowInProgress = false;
       showLoginScreen('⛔ Access restricted. You need an invitation token.');
       await signOut(auth);
     } catch(e){
-      _inviteFlowInProgress = false;
-      if(e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request'){
-        btn.style.opacity = ''; btn.style.pointerEvents = '';
-        return;
-      }
-      console.error('Sign-in error:', e.code, e.message);
-      showLoginScreen(`⚠ Error: ${e.code} — ${e.message}`);
+      console.error(e);
+      showLoginScreen('⚠ Sign-in failed. Try again.');
     }
   });
 }
@@ -1216,29 +1138,6 @@ async function showAdminPanel(){
 }
 
 // ── App boot ──────────────────────────────────────────────────────
-// ── Confidential lock/unlock ──────────────────────────────────────
-function updateLockBtn(){
-  const btn=document.getElementById('btn-lock'); if(!btn) return;
-  if(pinUnlocked){
-    btn.textContent='🔓'; btn.title='Lock confidential links'; btn.classList.add('unlocked');
-  } else {
-    btn.textContent='🔒'; btn.title='Unlock confidential links'; btn.classList.remove('unlocked');
-  }
-}
-function lockConfidential(){
-  pinUnlocked=false;
-  if(curFilter===LOCKED_TAG){ curFilter='all'; renderTagBar(); }
-  updateLockBtn(); renderAll();
-  showToast('🔒 Confidential links hidden','');
-}
-function unlockConfidential(){
-  if(!askPin()) return;
-  pinUnlocked=true;
-  if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
-  updateLockBtn(); renderAll();
-  showToast('🔓 Confidential links visible','success');
-}
-
 async function bootApp(user){
   userId = user.uid;
   const splash = document.getElementById('splash');
@@ -1295,10 +1194,9 @@ async function bootApp(user){
 
 // ── Boot entry point ──────────────────────────────────────────────
 onAuthStateChanged(auth, async user=>{
-  if(_inviteFlowInProgress) return; // invite flow handles auth itself
   if(user){
     if(await isApproved(user)){ bootApp(user); }
-    else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
+    else { showLoginScreen('⛔ Your account is pending approval.'); await signOut(auth); }
   } else {
     showLoginScreen();
   }
