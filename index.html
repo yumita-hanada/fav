@@ -409,8 +409,8 @@ const firebaseConfig = window.FIREBASE_CONFIG;
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, signInWithPopup, GoogleAuthProvider,
-         signOut, onAuthStateChanged }
+import { getAuth, signInWithRedirect, getRedirectResult,
+         GoogleAuthProvider, signOut, onAuthStateChanged }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
          collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
@@ -1085,22 +1085,10 @@ function showLoginScreen(msg=''){
 
   document.getElementById('btn-google-signin').addEventListener('click', async ()=>{
     const token = (document.getElementById('invite-token-input').value||'').trim();
+    // Store token before redirect (page will reload)
+    if(token) sessionStorage.setItem('invite_token', token);
     try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      // Check approval
-      if(await isApproved(user)){
-        bootApp(user); return;
-      }
-      // Try token
-      if(token){
-        const ok = await consumeInvite(token, user);
-        if(ok){ bootApp(user); return; }
-        showLoginScreen('❌ Invalid or expired token.');
-        await signOut(auth); return;
-      }
-      showLoginScreen('⛔ Access restricted. You need an invitation token.');
-      await signOut(auth);
+      await signInWithRedirect(auth, provider);
     } catch(e){
       console.error(e);
       showLoginScreen('⚠ Sign-in failed. Try again.');
@@ -1278,10 +1266,28 @@ async function bootApp(user){
 // ── Boot entry point ──────────────────────────────────────────────
 onAuthStateChanged(auth, async user=>{
   if(user){
+    // Check if we're returning from a redirect with an invite token
+    const pendingToken = sessionStorage.getItem('invite_token');
+    if(pendingToken){
+      sessionStorage.removeItem('invite_token');
+      if(!await isApproved(user)){
+        const ok = await consumeInvite(pendingToken, user);
+        if(ok){ bootApp(user); return; }
+        showLoginScreen('❌ Invalid or expired token.');
+        await signOut(auth); return;
+      }
+    }
     if(await isApproved(user)){ bootApp(user); }
-    else { showLoginScreen('⛔ Your account is pending approval.'); await signOut(auth); }
+    else { showLoginScreen('⛔ Access restricted. You need an invitation token.'); await signOut(auth); }
   } else {
-    showLoginScreen();
+    // Check for redirect result (returns null if no redirect pending)
+    try {
+      const result = await getRedirectResult(auth);
+      if(!result) showLoginScreen();
+    } catch(e){
+      console.error(e);
+      showLoginScreen('⚠ Sign-in failed. Try again.');
+    }
   }
 });
 </script>
