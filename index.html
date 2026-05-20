@@ -264,6 +264,39 @@
   .rand-img-item { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-muted); background:rgba(255,255,255,.04); border-radius:8px; padding:8px 12px; }
   .rand-img-item span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .rand-img-item button { background:none; border:none; color:#ff6060; cursor:pointer; font-size:14px; padding:0 4px; }
+
+  /* ── VIDEO MANAGER ───────────────────────────────── */
+  #random-videos-list { display:flex; flex-direction:column; gap:6px; }
+  .vid-item {
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07);
+    border-radius:10px; padding:8px 10px;
+    transition:border-color .15s, background .15s;
+  }
+  .vid-item:hover { background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.15); }
+  .vid-thumb {
+    width:64px; height:40px; border-radius:7px; flex-shrink:0;
+    background:#111; border:1px solid rgba(255,255,255,.1);
+    overflow:hidden; position:relative; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .vid-thumb video { width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .2s; pointer-events:none; }
+  .vid-thumb .play-icon { position:absolute; font-size:18px; color:rgba(255,255,255,.6); transition:opacity .2s; pointer-events:none; }
+  .vid-thumb:hover video { opacity:1; }
+  .vid-thumb:hover .play-icon { opacity:0; }
+  .vid-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .vid-name { font-size:12px; color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vid-url  { font-size:10px; color:var(--text-muted); font-family:var(--font-mono); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vid-actions { display:flex; gap:6px; flex-shrink:0; }
+  .vid-btn { padding:4px 9px; border-radius:7px; font-size:11px; font-family:var(--font); cursor:pointer; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:var(--text-muted); transition:all .15s; white-space:nowrap; }
+  .vid-btn:hover { background:rgba(255,255,255,.1); color:var(--text); }
+  .vid-btn.preview-active { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+  .vid-btn.danger { border-color:rgba(255,60,60,.3); color:#ff6060; background:rgba(255,60,60,.07); }
+  .vid-btn.danger:hover { background:rgba(255,60,60,.18); }
+  #vid-preview-banner { position:fixed; bottom:60px; left:50%; transform:translateX(-50%); z-index:8000; background:rgba(0,0,0,.85); border:1px solid var(--accent); border-radius:12px; padding:8px 16px; font-size:12px; color:var(--accent); backdrop-filter:blur(10px); display:none; gap:12px; align-items:center; white-space:nowrap; }
+  #vid-preview-banner.show { display:flex; }
+  #vid-preview-banner button { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:16px; padding:0; line-height:1; }
+  #vid-preview-banner button:hover { color:var(--text); }
   .firebase-info { background:rgba(255,170,0,.08); border:1px solid rgba(255,170,0,.25); border-radius:10px; padding:12px 14px; font-size:12px; color:rgba(255,170,0,.85); line-height:1.7; }
   .firebase-info code { font-family:var(--font-mono); background:rgba(255,255,255,.08); padding:1px 5px; border-radius:4px; font-size:11px; }
 
@@ -502,6 +535,7 @@
   </div>
 </div>
 
+<div id="vid-preview-banner" role="status"><span id="vid-preview-name">Aperçu en cours…</span><button id="vid-preview-stop" aria-label="Arrêter l'aperçu">✕</button></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ══════════════════════════════════════════
@@ -1224,15 +1258,82 @@ document.getElementById('grad-dir').addEventListener('change',e=>{ saveSetting('
 document.getElementById('bg-img-apply').addEventListener('click',()=>{ saveSetting('bgImgUrl',document.getElementById('bg-img-url').value.trim()); applyBg(); });
 document.getElementById('bg-video-apply').addEventListener('click',()=>{ saveSetting('bgVideoUrl',document.getElementById('bg-video-url').value.trim()); applyBg(); });
 
+// ── Video preview helpers ─────────────────────────────────────────
+let _vidPreviewActive = null;
+
+function vidFilename(url){
+  try{ const p=new URL(url).pathname; return decodeURIComponent(p.split('/').pop()||url).replace(/\.[^.]+$/,''); }
+  catch{ return url; }
+}
+
+function startVidPreview(url, name, btn){
+  stopVidPreview();
+  _vidPreviewActive = url;
+  const bgVideo=document.getElementById('bg-video');
+  const bgLayer=document.getElementById('bg-layer');
+  bgLayer.className='has-video';
+  bgVideo.src=url; bgVideo.classList.add('active'); bgVideo.play().catch(()=>{});
+  btn.classList.add('preview-active'); btn.textContent='⏹ Stop';
+  const banner=document.getElementById('vid-preview-banner');
+  document.getElementById('vid-preview-name').textContent='Aperçu : '+name;
+  banner.classList.add('show');
+}
+
+function stopVidPreview(){
+  if(!_vidPreviewActive) return;
+  _vidPreviewActive=null;
+  applyBg();
+  document.getElementById('vid-preview-banner').classList.remove('show');
+  document.querySelectorAll('.vid-btn.preview-active').forEach(b=>{ b.classList.remove('preview-active'); b.textContent='▶ Aperçu'; });
+}
+
+document.getElementById('vid-preview-stop').addEventListener('click', stopVidPreview);
+
 function renderRandVideoList(){
   const list=document.getElementById('random-videos-list'); if(!list) return;
   list.innerHTML='';
-  (DATA.settings.randomVideos||[]).forEach((url,i)=>{
-    const row=document.createElement('div'); row.className='rand-img-item';
-    const sp=document.createElement('span'); sp.title=url; sp.textContent=url;
-    const btn=document.createElement('button'); btn.textContent='✕'; btn.setAttribute('aria-label','Supprimer');
-    btn.addEventListener('click',()=>{ DATA.settings.randomVideos.splice(i,1); scheduleSave(); renderRandVideoList(); applyBg(); });
-    row.appendChild(sp); row.appendChild(btn); list.appendChild(row);
+  const videos=DATA.settings.randomVideos||[];
+  if(!videos.length){
+    const empty=document.createElement('div');
+    empty.style.cssText='font-size:11px;color:var(--text-muted);text-align:center;padding:12px 0;opacity:.5;';
+    empty.textContent='Aucune vidéo ajoutée'; list.appendChild(empty); return;
+  }
+  videos.forEach((url,i)=>{
+    const item=document.createElement('div'); item.className='vid-item';
+
+    // Thumbnail with hover preview
+    const thumb=document.createElement('div'); thumb.className='vid-thumb'; thumb.title='Survoler pour aperçu';
+    const playIcon=document.createElement('span'); playIcon.className='play-icon'; playIcon.textContent='▶';
+    const vid=document.createElement('video'); vid.src=url; vid.muted=true; vid.loop=true; vid.preload='metadata';
+    thumb.addEventListener('mouseenter',()=>vid.play().catch(()=>{}));
+    thumb.addEventListener('mouseleave',()=>{ vid.pause(); vid.currentTime=0; });
+    thumb.appendChild(vid); thumb.appendChild(playIcon);
+
+    // Info
+    const info=document.createElement('div'); info.className='vid-info';
+    const nameEl=document.createElement('div'); nameEl.className='vid-name';
+    const fname=vidFilename(url); nameEl.textContent=fname; nameEl.title=fname;
+    const urlEl=document.createElement('div'); urlEl.className='vid-url'; urlEl.textContent=url; urlEl.title=url;
+    info.appendChild(nameEl); info.appendChild(urlEl);
+
+    // Actions
+    const actions=document.createElement('div'); actions.className='vid-actions';
+    const previewBtn=document.createElement('button'); previewBtn.className='vid-btn'; previewBtn.textContent='▶ Aperçu';
+    previewBtn.setAttribute('aria-label','Aperçu en fond');
+    previewBtn.addEventListener('click',()=>{
+      if(_vidPreviewActive===url) stopVidPreview();
+      else startVidPreview(url, fname, previewBtn);
+    });
+    const delBtn=document.createElement('button'); delBtn.className='vid-btn danger'; delBtn.textContent='✕';
+    delBtn.setAttribute('aria-label','Supprimer cette vidéo');
+    delBtn.addEventListener('click',()=>{
+      if(_vidPreviewActive===url) stopVidPreview();
+      DATA.settings.randomVideos.splice(i,1);
+      scheduleSave(); renderRandVideoList(); applyBg();
+    });
+    actions.appendChild(previewBtn); actions.appendChild(delBtn);
+    item.appendChild(thumb); item.appendChild(info); item.appendChild(actions);
+    list.appendChild(item);
   });
 }
 document.getElementById('rand-vid-add').addEventListener('click',()=>{
