@@ -507,21 +507,7 @@
 <!-- ══════════════════════════════════════════
      FIREBASE  (ES module, CDN v10)
 ════════════════════════════════════════════ -->
-<script>
-const firebaseConfig = {
-  apiKey: "AIzaSyAEaW4yATqPwfqzsB92UBlyuE2VvRd6Sp8",
-  authDomain: "links-e3553.firebaseapp.com",
-  projectId: "links-e3553",
-  storageBucket: "links-e3553.firebasestorage.app",
-  messagingSenderId: "983152158430",
-  appId: "1:983152158430:web:7e4f290bd397b9e246044f",
-  measurementId: "G-5Y5PHHF4ZW"
-};
-window.ADMIN_EMAIL = "votre@email.com";
-</script>
 <script type="module">
-const firebaseConfig = window.FIREBASE_CONFIG;
-
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, signInWithPopup, GoogleAuthProvider,
@@ -530,6 +516,18 @@ import { getAuth, signInWithPopup, GoogleAuthProvider,
 import { getFirestore, doc, getDoc, setDoc, deleteDoc,
          collection, getDocs, onSnapshot, writeBatch, serverTimestamp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── 🔧 CONFIG — modifiez ces valeurs ────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyAEaW4yATqPwfqzsB92UBlyuE2VvRd6Sp8",
+  authDomain:        "links-e3553.firebaseapp.com",
+  projectId:         "links-e3553",
+  storageBucket:     "links-e3553.firebasestorage.app",
+  messagingSenderId: "983152158430",
+  appId:             "1:983152158430:web:7e4f290bd397b9e246044f"
+};
+const ADMIN_EMAIL = "votre@email.com"; // ← remplacez par votre email Google
+// ────────────────────────────────────────────────────────────────
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -1307,7 +1305,7 @@ window.addEventListener('resize',renderAll);
 // ── Auth helpers ──────────────────────────────────────────────────
 const provider=new GoogleAuthProvider();
 let _inviteFlowInProgress=false;
-const ADMIN_EMAIL=window.ADMIN_EMAIL||'';
+// ADMIN_EMAIL défini en haut du module
 let _cachedAdmin=null;
 
 async function isAdmin(user){
