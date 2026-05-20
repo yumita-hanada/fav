@@ -62,9 +62,42 @@
   #app { position:relative; z-index:2; width:100%; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
 
   /* ── TOPBAR ─────────────────────────────────────── */
-  #topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 24px 0; flex-shrink:0; }
-  #label-bar { display:flex; gap:8px; flex-wrap:nowrap; overflow:hidden; align-items:center; padding-top:8px; transition:max-height .3s ease, opacity .3s ease, padding .3s ease; max-height:60px; overflow:visible; }
-  #label-bar.hidden { max-height:0; opacity:0; pointer-events:none; padding-top:0; }
+  /* ── TOPBAR — deux lignes fixes ─────────────────── */
+  #topbar {
+    display:flex; flex-direction:column;
+    padding:14px 24px 0; flex-shrink:0; gap:0;
+  }
+  #topbar-row1 {
+    display:flex; align-items:center; justify-content:flex-end;
+  }
+  #topbar-row2 {
+    display:flex; align-items:center; gap:0;
+    transition:max-height .3s ease, opacity .3s ease, padding .3s ease;
+    max-height:52px; overflow:hidden; padding-top:8px;
+  }
+  #topbar-row2.hidden { max-height:0; opacity:0; pointer-events:none; padding-top:0; }
+
+  /* Tags: scroll horizontal sans scrollbar visible */
+  #label-bar {
+    display:flex; gap:8px; flex-wrap:nowrap;
+    overflow-x:auto; overflow-y:visible;
+    align-items:center;
+    /* masquer la scrollbar mais garder le scroll */
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+    padding-bottom:2px; /* évite que les ombres soient coupées */
+    /* fondu sur les bords */
+    mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 48px), transparent 100%);
+    -webkit-mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 48px), transparent 100%);
+    flex:1; min-width:0;
+  }
+  #label-bar::-webkit-scrollbar { display:none; }
+  #label-bar.hidden { max-height:0; opacity:0; pointer-events:none; }
+
+  /* Bouton "+ tag" toujours visible à droite de la barre */
+  #label-bar-end {
+    display:flex; align-items:center; flex-shrink:0; padding-left:4px;
+  }
 
   .label-chip {
     padding:5px 13px; border-radius:99px; font-size:12px; font-weight:500;
@@ -335,6 +368,7 @@
     .page { padding: calc(var(--gap) * 0.8); gap: calc(var(--gap) * 0.8); }
     #label-bar { gap:6px; }
     .label-chip { padding:4px 10px; font-size:11px; }
+    #topbar-row1 { gap:6px; }
   }
 </style>
 </head>
@@ -353,11 +387,8 @@
 
 <div id="app">
   <div id="topbar" role="toolbar" aria-label="Navigation">
-    <div id="label-bar" role="tablist" aria-label="Tags">
-      <div class="label-chip active" data-label="all" role="tab" aria-selected="true" tabindex="0">All</div>
-      <button id="lbl-add-btn" aria-label="Ajouter un tag">+ tag</button>
-    </div>
-    <div id="topbar-right">
+    <div id="topbar-row1">
+      <div id="topbar-right">
       <div id="sync-dot" title="Firebase sync" aria-label="Statut synchronisation" role="status"></div>
       <!-- View switcher -->
       <div id="view-switcher" role="group" aria-label="Mode d'affichage">
@@ -370,8 +401,16 @@
       <button class="icon-btn" id="btn-toggle-tags" title="Toggle tags" aria-label="Afficher/masquer les tags">⊟</button>
       <button class="icon-btn" id="btn-add-link" title="Add link" aria-label="Ajouter un lien">＋</button>
       <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Paramètres">⚙</button>
-    </div>
-  </div>
+      </div><!-- /topbar-right -->
+    </div><!-- /topbar-row1 -->
+    <div id="topbar-row2">
+      <div id="label-bar" role="tablist" aria-label="Tags">
+      </div>
+      <div id="label-bar-end">
+        <button id="lbl-add-btn" aria-label="Ajouter un tag">+ tag</button>
+      </div>
+    </div><!-- /topbar-row2 -->
+  </div><!-- /topbar -->
   <div id="pages-container" aria-label="Liens"></div>
   <div id="page-dots" role="navigation" aria-label="Pages"></div>
 </div>
@@ -1197,13 +1236,16 @@ function renderTagBar(){
     bar.appendChild(lockBtn);
   }
 
-  const addBtn=document.createElement('button'); addBtn.id='lbl-add-btn'; addBtn.textContent='+ tag';
-  addBtn.addEventListener('click',()=>{
-    const n=(prompt('Nom du nouveau tag :')||'').trim().toLowerCase();
-    if(!n||DATA.labels.includes(n)) return;
-    DATA.labels.push(n); scheduleSave(); renderTagBar();
-  });
-  bar.appendChild(addBtn);
+  // lbl-add-btn is in #label-bar-end (outside scrollable zone), bind once
+  const existingAddBtn = document.getElementById('lbl-add-btn');
+  if(existingAddBtn && !existingAddBtn._bound){
+    existingAddBtn._bound = true;
+    existingAddBtn.addEventListener('click',()=>{
+      const n=(prompt('Nom du nouveau tag :')||'').trim().toLowerCase();
+      if(!n||DATA.labels.includes(n)) return;
+      DATA.labels.push(n); scheduleSave(); renderTagBar();
+    });
+  }
 }
 
 // ── Settings ──────────────────────────────────────────────────────
@@ -1611,16 +1653,16 @@ async function bootApp(user){
   const displayName=user.displayName?user.displayName.split(' ')[0]:user.email;
   showToast(`Bienvenue ${displayName} 👋`,'success');
 
-  document.getElementById('label-bar').classList.add('hidden');
+  document.getElementById('topbar-row2').classList.add('hidden');
 
   const toggleBtn=document.getElementById('btn-toggle-tags');
   if(!toggleBtn._bound){
     toggleBtn._bound=true;
     toggleBtn.addEventListener('click',()=>{
-      const bar=document.getElementById('label-bar');
-      bar.classList.toggle('hidden');
+      const row2=document.getElementById('topbar-row2');
+      row2.classList.toggle('hidden');
       toggleBtn.classList.toggle('active');
-      toggleBtn.textContent=bar.classList.contains('hidden')?'⊟':'⊞';
+      toggleBtn.textContent=row2.classList.contains('hidden')?'⊟':'⊞';
     });
   }
   const lockBtn=document.getElementById('btn-lock');
