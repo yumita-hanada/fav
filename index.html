@@ -507,7 +507,17 @@
 <!-- ══════════════════════════════════════════
      FIREBASE  (ES module, CDN v10)
 ════════════════════════════════════════════ -->
-<script src="config.js"></script>
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "AIza...",
+  authDomain: "votre-app.firebaseapp.com",
+  projectId: "votre-app",
+  storageBucket: "votre-app.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123..."
+};
+window.ADMIN_EMAIL = "votre@email.com";
+</script>
 <script type="module">
 const firebaseConfig = window.FIREBASE_CONFIG;
 
