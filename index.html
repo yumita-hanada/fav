@@ -52,9 +52,9 @@
   /* ── BACKGROUND ─────────────────────────────────── */
   #bg-layer { position:fixed; inset:0; z-index:0; background:var(--bg); transition:background .4s; }
   #bg-layer.has-image { background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
-  #bg-overlay { position:fixed; inset:0; z-index:1; background:rgba(0,0,0,.35); pointer-events:none; opacity:0; transition:opacity .4s; }
-  #bg-layer.has-image ~ #bg-overlay { opacity:1; }
-  #bg-layer.has-video ~ #bg-overlay { opacity:1; }
+  #bg-overlay { position:fixed; inset:0; z-index:1; background:rgba(0,0,0,1); pointer-events:none; opacity:0; transition:opacity .3s; }
+  #bg-layer.has-image ~ #bg-overlay { opacity:var(--overlay-opacity,0.35); }
+  #bg-layer.has-video ~ #bg-overlay { opacity:var(--overlay-opacity,0.35); }
   #bg-video { position:fixed; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; display:none; }
   #bg-video.active { display:block; }
 
@@ -82,13 +82,10 @@
     display:flex; gap:8px; flex-wrap:nowrap;
     overflow-x:auto; overflow-y:visible;
     align-items:center;
-    /* masquer la scrollbar mais garder le scroll */
-    scrollbar-width:none;
-    -ms-overflow-style:none;
-    padding-bottom:2px; /* évite que les ombres soient coupées */
-    /* fondu sur les bords */
-    mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 48px), transparent 100%);
-    -webkit-mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 48px), transparent 100%);
+    scrollbar-width:none; -ms-overflow-style:none;
+    padding:2px 2px 2px 4px; /* small padding so hover states aren't clipped */
+    mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 40px), transparent 100%);
+    -webkit-mask-image:linear-gradient(to right, transparent 0px, black 16px, black calc(100% - 40px), transparent 100%);
     flex:1; min-width:0;
   }
   #label-bar::-webkit-scrollbar { display:none; }
@@ -110,13 +107,14 @@
   .label-chip:hover { color:var(--text); border-color:rgba(255,255,255,.25); }
   .label-chip.active { background:var(--accent); color:#000; border-color:var(--accent); font-weight:600; }
   .label-chip .lbl-del {
-    display:none; position:absolute; top:-7px; right:-7px;
-    width:16px; height:16px; border-radius:50%;
-    background:#ff4444; color:#fff; font-size:10px; line-height:1;
+    display:none;
+    width:14px; height:14px; border-radius:50%; flex-shrink:0;
+    background:rgba(255,60,60,.7); color:#fff; font-size:9px; line-height:1;
     align-items:center; justify-content:center; cursor:pointer;
-    border:2px solid #0a0a0a; z-index:10;
+    margin-left:4px;
   }
   .label-chip:hover .lbl-del { display:flex; }
+  .label-chip:hover .lbl-del:hover { background:#ff4444; }
   #lbl-add-btn { padding:5px 11px; border-radius:99px; font-size:12px; font-family:var(--font-mono); cursor:pointer; border:1px dashed var(--card-border); background:transparent; color:var(--text-muted); transition:all .18s; }
   #lbl-add-btn:hover { border-color:var(--accent); color:var(--accent); }
   #topbar-right { display:flex; gap:8px; align-items:center; flex-shrink:0; }
@@ -389,47 +387,47 @@
   <div id="topbar" role="toolbar" aria-label="Navigation">
     <div id="topbar-row1">
       <div id="topbar-right">
-      <div id="sync-dot" title="Firebase sync" aria-label="Statut synchronisation" role="status"></div>
+      <div id="sync-dot" title="Firebase sync" aria-label="Sync status" role="status"></div>
       <!-- View switcher -->
-      <div id="view-switcher" role="group" aria-label="Mode d'affichage">
-        <button class="view-btn active" data-view="grid" title="Grille" aria-label="Vue grille" aria-pressed="true">⊞</button>
-        <button class="view-btn" data-view="compact" title="Compact" aria-label="Vue compacte" aria-pressed="false">▪▪</button>
-        <button class="view-btn" data-view="grouped" title="Par tags" aria-label="Grouper par tags" aria-pressed="false">☰</button>
-        <button class="view-btn" data-view="list" title="Liste" aria-label="Vue liste" aria-pressed="false">≡</button>
+      <div id="view-switcher" role="group" aria-label="View mode">
+        <button class="view-btn active" data-view="grid" title="Grid" aria-label="Grid view" aria-pressed="true">⊞</button>
+        <button class="view-btn" data-view="compact" title="Compact" aria-label="Compact view" aria-pressed="false">▪▪</button>
+        <button class="view-btn" data-view="grouped" title="By tags" aria-label="Group by tags" aria-pressed="false">☰</button>
+        <button class="view-btn" data-view="list" title="List" aria-label="List view" aria-pressed="false">≡</button>
       </div>
-      <button class="icon-btn" id="btn-lock" title="Unlock confidential links" aria-label="Déverrouiller les liens confidentiels">🔒</button>
-      <button class="icon-btn" id="btn-toggle-tags" title="Toggle tags" aria-label="Afficher/masquer les tags">⊟</button>
-      <button class="icon-btn" id="btn-add-link" title="Add link" aria-label="Ajouter un lien">＋</button>
-      <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Paramètres">⚙</button>
+      <button class="icon-btn" id="btn-lock" title="Unlock confidential links" aria-label="Unlock confidential links">🔒</button>
+      <button class="icon-btn" id="btn-toggle-tags" title="Toggle tags" aria-label="Toggle tags">⊟</button>
+      <button class="icon-btn" id="btn-add-link" title="Add link" aria-label="Add link">＋</button>
+      <button class="icon-btn" id="btn-settings" title="Settings" aria-label="Settings">⚙</button>
       </div><!-- /topbar-right -->
     </div><!-- /topbar-row1 -->
     <div id="topbar-row2">
       <div id="label-bar" role="tablist" aria-label="Tags">
       </div>
       <div id="label-bar-end">
-        <button id="lbl-add-btn" aria-label="Ajouter un tag">+ tag</button>
+        <button id="lbl-add-btn" aria-label="Add tag">+ tag</button>
       </div>
     </div><!-- /topbar-row2 -->
   </div><!-- /topbar -->
-  <div id="pages-container" aria-label="Liens"></div>
-  <div id="page-dots" role="navigation" aria-label="Pages"></div>
+  <div id="pages-container" aria-label="Links"></div>
+  <div id="page-dots" role="navigation" aria-label="Navigation pages"></div>
 </div>
 
 <!-- Context menu -->
 <div id="ctx-menu" role="menu" aria-label="Actions">
-  <div class="ctx-item" id="ctx-edit" role="menuitem">✏️ Modifier</div>
-  <div class="ctx-item danger" id="ctx-delete" role="menuitem">🗑 Supprimer</div>
+  <div class="ctx-item" id="ctx-edit" role="menuitem">✏️ Edit</div>
+  <div class="ctx-item danger" id="ctx-delete" role="menuitem">🗑 Delete</div>
 </div>
 
 <!-- Delete confirmation -->
 <div id="delete-confirm" role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title">
   <div id="delete-confirm-box">
-    <h3 id="delete-confirm-title">Supprimer ce lien ?</h3>
+    <h3 id="delete-confirm-title">Delete this link?</h3>
     <p id="delete-confirm-name" style="color:var(--text);font-weight:500;"></p>
-    <p>Cette action est irréversible.</p>
+    <p>This action cannot be undone.</p>
     <div id="delete-confirm-btns">
-      <button class="btn btn-ghost" id="delete-cancel">Annuler</button>
-      <button class="btn btn-danger" id="delete-ok">Supprimer</button>
+      <button class="btn btn-ghost" id="delete-cancel">Cancel</button>
+      <button class="btn btn-danger" id="delete-ok">Delete</button>
     </div>
   </div>
 </div>
@@ -437,14 +435,14 @@
 <!-- Add / Edit modal -->
 <div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
   <div id="modal">
-    <h2 id="modal-title">Ajouter un lien</h2>
-    <div class="field"><label for="m-name">Nom</label><input type="text" id="m-name" placeholder="Mon site"></div>
+    <h2 id="modal-title">Add link</h2>
+    <div class="field"><label for="m-name">Name</label><input type="text" id="m-name" placeholder="My site"></div>
     <div class="field"><label for="m-url">URL</label><input type="url" id="m-url" placeholder="https://…"></div>
-    <div class="field"><label for="m-icon">Icône (URL image, emoji, ou vide pour auto)</label><input type="text" id="m-icon" placeholder="auto"></div>
+    <div class="field"><label for="m-icon">Icon (image URL, emoji, or blank for auto)</label><input type="text" id="m-icon" placeholder="auto"></div>
     <div class="field"><label>Tags</label><div class="tag-chips-edit" id="m-tags"></div></div>
     <div class="modal-btns">
-      <button class="btn btn-ghost" id="m-cancel">Annuler</button>
-      <button class="btn btn-primary" id="m-save">Enregistrer</button>
+      <button class="btn btn-ghost" id="m-cancel">Cancel</button>
+      <button class="btn btn-primary" id="m-save">Save</button>
     </div>
   </div>
 </div>
@@ -452,29 +450,29 @@
 <!-- Settings -->
 <div id="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div id="settings-box">
-    <h2 id="settings-title">⚙ Paramètres</h2>
+    <h2 id="settings-title">⚙ Settings</h2>
 
     <div class="settings-section">
       <h3>Firebase</h3>
       <div class="firebase-info">
         🔥 <span id="firebase-user-display">Connexion…</span><br>
-        <span style="opacity:.7;font-size:11px;">Vos données sont privées et sécurisées.</span>
+        <span style="opacity:.7;font-size:11px;">Your data is private and secure.</span>
       </div>
     </div>
 
     <div class="settings-section">
-      <h3>Fond d'écran</h3>
+      <h3>Background</h3>
       <div class="bg-options">
-        <div class="bg-opt active" data-bg="solid">Couleur unie</div>
-        <div class="bg-opt" data-bg="gradient">Dégradé</div>
-        <div class="bg-opt" data-bg="image">Image fixe</div>
-        <div class="bg-opt" data-bg="video">Vidéo (mp4)</div>
-        <div class="bg-opt" data-bg="randomvideos">Vidéos aléatoires</div>
-        <div class="bg-opt" data-bg="random">Images aléatoires</div>
+        <div class="bg-opt active" data-bg="solid">Solid color</div>
+        <div class="bg-opt" data-bg="gradient">Gradient</div>
+        <div class="bg-opt" data-bg="image">Image</div>
+        <div class="bg-opt" data-bg="video">Video (mp4)</div>
+        <div class="bg-opt" data-bg="randomvideos">Random videos</div>
+        <div class="bg-opt" data-bg="random">Random images</div>
       </div>
 
       <div id="bg-solid-opts">
-        <div class="color-row"><input type="color" id="bg-color" value="#0a0a0a"><label>Couleur de fond</label></div>
+        <div class="color-row"><input type="color" id="bg-color" value="#0a0a0a"><label>Background color</label></div>
       </div>
 
       <div id="bg-gradient-opts" style="display:none">
@@ -494,27 +492,27 @@
       <div id="bg-image-opts" style="display:none">
         <div class="img-url-row">
           <input type="url" id="bg-img-url" placeholder="https://…" class="s-input" style="flex:1;">
-          <button class="btn btn-ghost" id="bg-img-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Appliquer</button>
+          <button class="btn btn-ghost" id="bg-img-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Apply</button>
         </div>
       </div>
 
       <div id="bg-video-opts" style="display:none">
         <div class="img-url-row">
           <input type="url" id="bg-video-url" placeholder="https://… .mp4" class="s-input" style="flex:1;">
-          <button class="btn btn-ghost" id="bg-video-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Appliquer</button>
+          <button class="btn btn-ghost" id="bg-video-apply" style="white-space:nowrap;padding:9px 14px;font-size:12px;">Apply</button>
         </div>
       </div>
 
       <div id="bg-randomvideos-opts" style="display:none">
         <div class="img-url-row">
           <input type="url" id="rand-vid-url" placeholder="https://… .mp4" class="s-input" style="flex:1;">
-          <button class="btn btn-ghost" id="rand-vid-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Ajouter</button>
+          <button class="btn btn-ghost" id="rand-vid-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Add</button>
         </div>
         <div id="random-videos-list" style="margin-top:8px;"></div>
         <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Changer toutes les</span>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Switch every</span>
           <select id="rand-vid-interval" class="s-input">
-            <option value="0">À la fin de la vidéo</option>
+            <option value="0">On video end</option>
             <option value="30">30 secondes</option>
             <option value="60">1 minute</option>
             <option value="300">5 minutes</option>
@@ -524,14 +522,14 @@
 
       <div id="bg-random-opts" style="display:none">
         <div class="img-url-row">
-          <input type="url" id="rand-img-url" placeholder="URL d'image…" class="s-input" style="flex:1;">
-          <button class="btn btn-ghost" id="rand-img-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Ajouter</button>
+          <input type="url" id="rand-img-url" placeholder="Image URL…" class="s-input" style="flex:1;">
+          <button class="btn btn-ghost" id="rand-img-add" style="white-space:nowrap;padding:9px 14px;font-size:12px;">+ Add</button>
         </div>
         <div id="random-images-list" style="margin-top:8px;"></div>
         <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Changer toutes les</span>
+          <span style="font-size:11px;color:var(--text-muted);white-space:nowrap;">Switch every</span>
           <select id="rand-interval" class="s-input">
-            <option value="0">Au rechargement uniquement</option>
+            <option value="0">On reload only</option>
             <option value="30">30 secondes</option>
             <option value="60">1 minute</option>
             <option value="300">5 minutes</option>
@@ -542,16 +540,16 @@
     </div>
 
     <div class="settings-section">
-      <h3>Grille</h3>
-      <div class="grid-row"><label>Largeur carte</label><input type="range" id="s-card-w" min="60" max="140" value="90"><span class="val" id="s-card-w-val">90px</span></div>
-      <div class="grid-row"><label>Hauteur carte</label><input type="range" id="s-card-h" min="70" max="160" value="96"><span class="val" id="s-card-h-val">96px</span></div>
-      <div class="grid-row"><label>Espacement</label><input type="range" id="s-gap" min="8" max="48" value="20"><span class="val" id="s-gap-val">20px</span></div>
+      <h3>Grid</h3>
+      <div class="grid-row"><label>Card width</label><input type="range" id="s-card-w" min="60" max="140" value="90"><span class="val" id="s-card-w-val">90px</span></div>
+      <div class="grid-row"><label>Card height</label><input type="range" id="s-card-h" min="70" max="160" value="96"><span class="val" id="s-card-h-val">96px</span></div>
+      <div class="grid-row"><label>Gap</label><input type="range" id="s-gap" min="8" max="48" value="20"><span class="val" id="s-gap-val">20px</span></div>
     </div>
 
     <div class="settings-section">
-      <h3>Liens</h3>
+      <h3>Links</h3>
       <div class="toggle-row">
-        <label>Trier alphabétiquement (A→Z)</label>
+        <label>Sort alphabetically (A→Z)</label>
         <div id="toggle-sort-alpha" class="toggle-switch" role="switch" aria-checked="false" tabindex="0">
           <div class="thumb"></div>
         </div>
@@ -559,22 +557,31 @@
     </div>
 
     <div class="settings-section">
-      <h3>Couleur d'accentuation</h3>
-      <div class="color-row"><input type="color" id="accent-color" value="#c8ff00"><label>Couleur de mise en évidence</label></div>
+      <h3>Accent color</h3>
+      <div class="color-row"><input type="color" id="accent-color" value="#c8ff00"><label>Highlight color</label></div>
     </div>
 
     <div class="settings-section">
-      <h3>Données</h3>
-      <button id="btn-export" aria-label="Exporter les liens en JSON">📦 Exporter mes liens (JSON)</button>
+      <h3>Overlay (video &amp; image)</h3>
+      <div class="grid-row">
+        <label>Darkness</label>
+        <input type="range" id="s-overlay" min="0" max="0.95" step="0.01" value="0.35">
+        <span class="val" id="s-overlay-val">35%</span>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Data</h3>
+      <button id="btn-export" aria-label="Export links as JSON">📦 Export links (JSON)</button>
     </div>
 
     <div class="modal-btns">
-      <button class="btn btn-ghost" id="s-close">Fermer</button>
+      <button class="btn btn-ghost" id="s-close">Close</button>
     </div>
   </div>
 </div>
 
-<div id="vid-preview-banner" role="status"><span id="vid-preview-name">Aperçu en cours…</span><button id="vid-preview-stop" aria-label="Arrêter l'aperçu">✕</button></div>
+<div id="vid-preview-banner" role="status"><span id="vid-preview-name">Preview…</span><button id="vid-preview-stop" aria-label="Stop preview">✕</button></div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ══════════════════════════════════════════
@@ -642,7 +649,7 @@ const DEFAULT_META={
   settings:{bgType:'solid',bgColor:'#0a0a0a',gradC1:'#0a0a0a',gradC2:'#1a1a2e',
     gradDir:'to bottom right',bgImgUrl:'',randomImages:[],randInterval:0,
     cardW:90,cardH:96,gap:20,accent:'#c8ff00',sortAlpha:false,bgVideoUrl:'',randomVideos:[],randVidInterval:0,
-    viewMode:'grid'}
+    viewMode:'grid',overlayOpacity:0.35}
 };
 
 let DATA={links:[],labels:[...DEFAULT_META.labels],settings:{...DEFAULT_META.settings}};
@@ -680,7 +687,7 @@ async function loadData() {
       DATA.links.sort((a,b)=>(a.order||0)-(b.order||0));
     }
     setSyncDot('ok');
-  } catch(e){ console.error(e); setSyncDot('error'); showToast('Firebase error — vérifiez votre config','error'); }
+  } catch(e){ console.error(e); setSyncDot('error'); showToast('Firebase error — check your config','error'); }
 }
 
 // ── Firebase save (debounced) ─────────────────────────────────────
@@ -700,7 +707,7 @@ function scheduleSave(){
       DATA.links.forEach((l,i)=>batch.set(linkRef(l.id),{...l,order:i}));
       await batch.commit();
       setSyncDot('ok');
-    } catch(e){ console.error(e); setSyncDot('error'); showToast('Erreur de sauvegarde','error'); }
+    } catch(e){ console.error(e); setSyncDot('error'); showToast('Save error','error'); }
   },900);
 }
 async function removeLink(id){
@@ -758,6 +765,9 @@ function applyBg(){
     setRandBg();
     if(s.randInterval>0) randTimer=setInterval(setRandBg,s.randInterval*1000);
   }
+  // Apply overlay opacity
+  const op = s.overlayOpacity !== undefined ? s.overlayOpacity : 0.35;
+  document.documentElement.style.setProperty('--overlay-opacity', op);
 }
 function setRandBg(){
   const imgs=DATA.settings.randomImages; if(!imgs||!imgs.length) return;
@@ -877,7 +887,7 @@ function renderAll(){
       if(untagged.length){
         const grp=document.createElement('div'); grp.className='tag-group';
         const hdr=document.createElement('div'); hdr.className='tag-group-header';
-        hdr.textContent='Sans tag';
+        hdr.textContent='Untagged';
         const count=document.createElement('span'); count.style.cssText='opacity:.4;font-family:var(--font-mono);';
         count.textContent=` (${untagged.length})`;
         hdr.appendChild(count);
@@ -936,8 +946,8 @@ function renderAll(){
 function makeEmptyState(){
   const el=document.createElement('div'); el.className='empty-state';
   el.innerHTML=`<div class="empty-icon">🔗</div>
-    <div class="empty-title">Aucun lien ici</div>
-    <div class="empty-sub">Cliquez sur <strong>＋</strong> pour ajouter votre premier lien.</div>`;
+    <div class="empty-title">No links here</div>
+    <div class="empty-sub">Click <strong>＋</strong> to add your first link.</div>`;
   return el;
 }
 
@@ -1045,8 +1055,8 @@ function makeAddCard(){
   div.className='add-card';
   div.setAttribute('role','button');
   div.setAttribute('tabindex','0');
-  div.setAttribute('aria-label','Ajouter un lien');
-  div.innerHTML='<div class="icon-wrap" aria-hidden="true">＋</div><div class="card-name">Ajouter</div>';
+  div.setAttribute('aria-label','Add link');
+  div.innerHTML='<div class="icon-wrap" aria-hidden="true">＋</div><div class="card-name">Add</div>';
   div.addEventListener('click',openAddModal);
   div.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' ') openAddModal(); });
   return div;
@@ -1124,7 +1134,7 @@ document.getElementById('delete-ok').addEventListener('click',async()=>{
   const id=delTargetId; closeDeleteConfirm();
   await removeLink(id);
   DATA.links=DATA.links.filter(l=>l.id!==id);
-  scheduleSave(); renderAll(); showToast('Lien supprimé','success');
+  scheduleSave(); renderAll(); showToast('Link deleted','success');
 });
 delConfirmEl.addEventListener('click',e=>{ if(e.target===delConfirmEl) closeDeleteConfirm(); });
 
@@ -1154,13 +1164,13 @@ function renderModalTags(sel=[]){
   });
 }
 function openAddModal(){
-  editId=null; document.getElementById('modal-title').textContent='Ajouter un lien';
+  editId=null; document.getElementById('modal-title').textContent='Add link';
   mName.value=mUrl.value=mIcon.value='';
   renderModalTags([]); modalEl.classList.add('show'); mName.focus();
 }
 function openEditModal(id){
   editId=id; const l=DATA.links.find(x=>x.id===id); if(!l) return;
-  document.getElementById('modal-title').textContent='Modifier le lien';
+  document.getElementById('modal-title').textContent='Edit link';
   mName.value=l.name; mUrl.value=l.url; mIcon.value=l.icon||'';
   renderModalTags(l.labels||[]); modalEl.classList.add('show'); mName.focus();
 }
@@ -1170,7 +1180,7 @@ function doSave(){
   const sel=[...mTagsEl.querySelectorAll('.tchip.sel')].map(c=>c.textContent);
   if(editId){ const l=DATA.links.find(x=>x.id===editId); if(l){l.name=mName.value.trim()||url;l.url=url;l.icon=mIcon.value.trim();l.labels=sel;} }
   else DATA.links.push({id:uid(),name:mName.value.trim()||url,url,icon:mIcon.value.trim(),labels:sel,order:DATA.links.length});
-  scheduleSave(); renderAll(); closeModal(); showToast(editId?'Mis à jour ✓':'Ajouté ✓','success');
+  scheduleSave(); renderAll(); closeModal(); showToast(editId?'Updated ✓':'Added ✓','success');
 }
 document.getElementById('m-cancel').addEventListener('click',closeModal);
 document.getElementById('m-save').addEventListener('click',doSave);
@@ -1181,14 +1191,14 @@ function askPin(){
   if(pinUnlocked) return true;
   const stored=DATA.settings.pin;
   if(!stored){
-    const p1=prompt('Définir un code PIN à 4 chiffres pour le tag 🔒 :');
-    if(!p1||!/^\d{4}$/.test(p1)){ alert('Le PIN doit contenir exactement 4 chiffres.'); return false; }
-    const p2=prompt('Confirmer le PIN :');
-    if(p1!==p2){ alert('Les PINs ne correspondent pas.'); return false; }
+    const p1=prompt('Set a 4-digit PIN for the 🔒 tag:');
+    if(!p1||!/^\d{4}$/.test(p1)){ alert('PIN must be exactly 4 digits.'); return false; }
+    const p2=prompt('Confirm PIN:');
+    if(p1!==p2){ alert('PINs do not match.'); return false; }
     DATA.settings.pin=p1; scheduleSave();
   } else {
-    const entered=prompt('Entrer le PIN pour accéder à 🔒 :');
-    if(entered!==stored){ alert('PIN incorrect.'); return false; }
+    const entered=prompt('Enter PIN to access 🔒:');
+    if(entered!==stored){ alert('Wrong PIN.'); return false; }
   }
   pinUnlocked=true;
   return true;
@@ -1200,7 +1210,7 @@ function renderTagBar(){
 
   const all=document.createElement('div');
   all.className='label-chip'+(curFilter==='all'?' active':'');
-  all.textContent='Tous'; all.tabIndex=0; all.role='tab';
+  all.textContent='All'; all.tabIndex=0; all.role='tab';
   all.setAttribute('aria-selected', curFilter==='all'?'true':'false');
   all.addEventListener('click',()=>{ curFilter='all'; curPage=0; renderTagBar(); renderAll(); });
   all.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ curFilter='all'; curPage=0; renderTagBar(); renderAll(); }});
@@ -1218,13 +1228,19 @@ function renderTagBar(){
       curFilter=lbl; curPage=0; renderTagBar(); renderAll();
     });
     chip.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ curFilter=lbl; curPage=0; renderTagBar(); renderAll(); }});
-    const del=document.createElement('div'); del.className='lbl-del'; del.textContent='×'; del.title='Supprimer ce tag'; del.setAttribute('aria-label',`Supprimer le tag ${lbl}`);
+    const del=document.createElement('div'); del.className='lbl-del'; del.textContent='×'; del.title='Remove tag'; del.setAttribute('aria-label',`Remove tag ${lbl}`);
     del.addEventListener('click',e=>{
       e.stopPropagation();
+      const count = DATA.links.filter(l=>(l.labels||[]).includes(lbl)).length;
+      const msg = count > 0
+        ? `Remove tag "${lbl}"? It is used by ${count} link${count>1?'s':''}.`
+        : `Remove tag "${lbl}"?`;
+      if(!confirm(msg)) return;
       DATA.labels=DATA.labels.filter(l=>l!==lbl);
       DATA.links.forEach(l=>{l.labels=(l.labels||[]).filter(x=>x!==lbl)});
       if(curFilter===lbl) curFilter='all';
       scheduleSave(); renderTagBar(); renderAll();
+      showToast(`Tag "${lbl}" removed`,'success');
     });
     chip.appendChild(del); bar.appendChild(chip);
   });
@@ -1241,7 +1257,7 @@ function renderTagBar(){
   if(existingAddBtn && !existingAddBtn._bound){
     existingAddBtn._bound = true;
     existingAddBtn.addEventListener('click',()=>{
-      const n=(prompt('Nom du nouveau tag :')||'').trim().toLowerCase();
+      const n=(prompt('New tag name:')||'').trim().toLowerCase();
       if(!n||DATA.labels.includes(n)) return;
       DATA.labels.push(n); scheduleSave(); renderTagBar();
     });
@@ -1272,6 +1288,7 @@ function syncSettingsUI(){
     document.getElementById('s-'+k+'-val').textContent=s[map[k]]+'px';
   });
   document.getElementById('accent-color').value=s.accent;
+  const ovEl=document.getElementById('s-overlay'); if(ovEl){ ovEl.value=s.overlayOpacity!==undefined?s.overlayOpacity:0.35; document.getElementById('s-overlay-val').textContent=Math.round((s.overlayOpacity!==undefined?s.overlayOpacity:0.35)*100)+'%'; }
   // Sort alpha toggle
   const ta=document.getElementById('toggle-sort-alpha');
   if(ta){ ta.classList.toggle('on',!!s.sortAlpha); ta.setAttribute('aria-checked',s.sortAlpha?'true':'false'); }
@@ -1317,7 +1334,7 @@ function startVidPreview(url, name, btn){
   bgVideo.src=url; bgVideo.classList.add('active'); bgVideo.play().catch(()=>{});
   btn.classList.add('preview-active'); btn.textContent='⏹ Stop';
   const banner=document.getElementById('vid-preview-banner');
-  document.getElementById('vid-preview-name').textContent='Aperçu : '+name;
+  document.getElementById('vid-preview-name').textContent='Preview: '+name;
   banner.classList.add('show');
 }
 
@@ -1338,13 +1355,13 @@ function renderRandVideoList(){
   if(!videos.length){
     const empty=document.createElement('div');
     empty.style.cssText='font-size:11px;color:var(--text-muted);text-align:center;padding:12px 0;opacity:.5;';
-    empty.textContent='Aucune vidéo ajoutée'; list.appendChild(empty); return;
+    empty.textContent='No videos added'; list.appendChild(empty); return;
   }
   videos.forEach((url,i)=>{
     const item=document.createElement('div'); item.className='vid-item';
 
     // Thumbnail with hover preview
-    const thumb=document.createElement('div'); thumb.className='vid-thumb'; thumb.title='Survoler pour aperçu';
+    const thumb=document.createElement('div'); thumb.className='vid-thumb'; thumb.title='Hover to preview';
     const playIcon=document.createElement('span'); playIcon.className='play-icon'; playIcon.textContent='▶';
     const vid=document.createElement('video'); vid.src=url; vid.muted=true; vid.loop=true; vid.preload='metadata';
     thumb.addEventListener('mouseenter',()=>vid.play().catch(()=>{}));
@@ -1360,14 +1377,14 @@ function renderRandVideoList(){
 
     // Actions
     const actions=document.createElement('div'); actions.className='vid-actions';
-    const previewBtn=document.createElement('button'); previewBtn.className='vid-btn'; previewBtn.textContent='▶ Aperçu';
-    previewBtn.setAttribute('aria-label','Aperçu en fond');
+    const previewBtn=document.createElement('button'); previewBtn.className='vid-btn'; previewBtn.textContent='▶ Preview';
+    previewBtn.setAttribute('aria-label','Preview as background');
     previewBtn.addEventListener('click',()=>{
       if(_vidPreviewActive===url) stopVidPreview();
       else startVidPreview(url, fname, previewBtn);
     });
     const delBtn=document.createElement('button'); delBtn.className='vid-btn danger'; delBtn.textContent='✕';
-    delBtn.setAttribute('aria-label','Supprimer cette vidéo');
+    delBtn.setAttribute('aria-label','Remove this video');
     delBtn.addEventListener('click',()=>{
       if(_vidPreviewActive===url) stopVidPreview();
       DATA.settings.randomVideos.splice(i,1);
@@ -1400,7 +1417,7 @@ function renderRandList(){
   (DATA.settings.randomImages||[]).forEach((url,i)=>{
     const row=document.createElement('div'); row.className='rand-img-item';
     const sp=document.createElement('span'); sp.title=url; sp.textContent=url;
-    const btn=document.createElement('button'); btn.textContent='✕'; btn.setAttribute('aria-label','Supprimer');
+    const btn=document.createElement('button'); btn.textContent='✕'; btn.setAttribute('aria-label','Remove');
     btn.addEventListener('click',()=>{ DATA.settings.randomImages.splice(i,1); scheduleSave(); renderRandList(); applyBg(); });
     row.appendChild(sp); row.appendChild(btn); list.appendChild(row);
   });
@@ -1411,6 +1428,12 @@ function renderRandList(){
   el.addEventListener('input',()=>{ const v=parseInt(el.value); vl.textContent=v+'px'; saveSetting(map[k],v); renderAll(); });
 });
 document.getElementById('accent-color').addEventListener('input',e=>{ saveSetting('accent',e.target.value); applyCSSVars(); });
+document.getElementById('s-overlay').addEventListener('input',e=>{
+  const v=parseFloat(e.target.value);
+  document.getElementById('s-overlay-val').textContent=Math.round(v*100)+'%';
+  saveSetting('overlayOpacity',v);
+  document.documentElement.style.setProperty('--overlay-opacity',v);
+});
 const toggleSortAlpha=document.getElementById('toggle-sort-alpha');
 toggleSortAlpha.addEventListener('click',()=>{
   const val=!DATA.settings.sortAlpha; saveSetting('sortAlpha',val);
@@ -1425,7 +1448,7 @@ document.getElementById('btn-export').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='startpage-links.json'; a.click(); URL.revokeObjectURL(a.href);
-  showToast('Liens exportés ✓','success');
+  showToast('Links exported ✓','success');
 });
 
 // ── Navigation (keyboard, wheel, touch) ──────────────────────────
@@ -1485,11 +1508,11 @@ function showLoginScreen(msg=''){
       ${msg?`<div style="font-size:12px;color:#ff6060;text-align:center;">${escHtml(msg)}</div>`:''}
       <button id="btn-google-signin" style="display:flex;align-items:center;gap:10px;background:#fff;color:#222;border:none;border-radius:12px;padding:12px 22px;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font);width:100%;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,0.4);transition:opacity .15s;">
         <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.2l6.8-6.8C35.8 2.2 30.2 0 24 0 14.7 0 6.7 5.4 2.9 13.3l7.9 6.1C12.6 13.2 17.9 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.5 2.9-2.2 5.4-4.7 7l7.3 5.7c4.3-4 6.8-9.9 7.2-16.7z"/><path fill="#FBBC05" d="M10.8 28.6A14.7 14.7 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7.9-6.1A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.3-6.2z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.3-5.7c-2 1.4-4.6 2.2-7.9 2.2-6.1 0-11.3-3.7-13.2-9l-8.3 6.2C6.7 42.6 14.7 48 24 48z"/></svg>
-        Se connecter avec Google
+        Sign in with Google
       </button>
       <div style="font-size:11px;color:var(--text-muted);text-align:center;line-height:1.6;">Accès sur invitation uniquement.</div>
       <div style="display:flex;gap:8px;width:100%;">
-        <input id="invite-token-input" type="text" placeholder="Token d'invitation (optionnel)"
+        <input id="invite-token-input" type="text" placeholder="Invitation token (optional)"
           style="flex:1;border-radius:10px;padding:10px 14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:var(--text);font-family:var(--font);font-size:13px;outline:none;">
       </div>
     </div>`;
@@ -1499,9 +1522,9 @@ function showLoginScreen(msg=''){
     try {
       const result=await signInWithPopup(auth,provider); const user=result.user;
       if(await isApproved(user)){ _inviteFlowInProgress=false; bootApp(user); return; }
-      if(token){ const ok=await consumeInvite(token,user); if(ok){ _inviteFlowInProgress=false; bootApp(user); return; } _inviteFlowInProgress=false; showLoginScreen('❌ Token invalide ou expiré.'); await signOut(auth); return; }
-      _inviteFlowInProgress=false; showLoginScreen('⛔ Accès restreint. Un token d\'invitation est requis.'); await signOut(auth);
-    } catch(e){ _inviteFlowInProgress=false; if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request') return; showLoginScreen(`⚠ Erreur : ${e.code}`); }
+      if(token){ const ok=await consumeInvite(token,user); if(ok){ _inviteFlowInProgress=false; bootApp(user); return; } _inviteFlowInProgress=false; showLoginScreen('❌ Invalid or expired token.'); await signOut(auth); return; }
+      _inviteFlowInProgress=false; showLoginScreen('⛔ Access restricted. An invitation token is required.'); await signOut(auth);
+    } catch(e){ _inviteFlowInProgress=false; if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request') return; showLoginScreen(`⚠ Error: ${e.code}`); }
   });
 }
 
@@ -1509,7 +1532,7 @@ function showLoginScreen(msg=''){
 async function showAdminPanel(){
   const panel=document.createElement('div');
   panel.id='admin-panel';
-  panel.setAttribute('role','dialog'); panel.setAttribute('aria-modal','true'); panel.setAttribute('aria-label','Panneau admin');
+  panel.setAttribute('role','dialog'); panel.setAttribute('aria-modal','true'); panel.setAttribute('aria-label','Admin panel');
   panel.style.cssText='position:fixed;inset:0;z-index:950;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;';
 
   const box=document.createElement('div');
@@ -1517,22 +1540,22 @@ async function showAdminPanel(){
 
   const header=document.createElement('div');
   header.style.cssText='display:flex;justify-content:space-between;align-items:center;';
-  const h2=document.createElement('h2'); h2.textContent='👑 Panneau admin'; h2.style.cssText='font-size:16px;font-weight:500;';
+  const h2=document.createElement('h2'); h2.textContent='👑 Admin panel'; h2.style.cssText='font-size:16px;font-weight:500;';
   const closeBtn=document.createElement('button'); closeBtn.id='admin-close'; closeBtn.textContent='✕';
   closeBtn.style.cssText='cursor:pointer;color:rgba(255,255,255,.4);font-size:20px;background:none;border:none;font-family:inherit;padding:4px;';
-  closeBtn.setAttribute('aria-label','Fermer');
+  closeBtn.setAttribute('aria-label','Close');
   header.appendChild(h2); header.appendChild(closeBtn); box.appendChild(header);
 
   // Invite section
   const invSec=document.createElement('div');
   invSec.style.cssText='display:flex;flex-direction:column;gap:8px;';
-  const invTitle=document.createElement('div'); invTitle.textContent="Générer une invitation";
+  const invTitle=document.createElement('div'); invTitle.textContent="Generate invitation";
   invTitle.style.cssText='font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);';
   invSec.appendChild(invTitle);
   const invRow=document.createElement('div'); invRow.style.cssText='display:flex;gap:8px;';
   const invSel=document.createElement('select'); invSel.id='inv-expiry'; invSel.className='s-input'; invSel.style.flex='1';
-  [['24','Expire dans 24h'],['72','Expire dans 72h'],['168','Expire dans 7 jours'],['0','Sans expiration']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; invSel.appendChild(o); });
-  const invBtn=document.createElement('button'); invBtn.id='btn-gen-invite'; invBtn.textContent='Générer';
+  [['24','Expires in 24h'],['72','Expires in 72h'],['168','Expires in 7 days'],['0','No expiry']].forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; invSel.appendChild(o); });
+  const invBtn=document.createElement('button'); invBtn.id='btn-gen-invite'; invBtn.textContent='Generate';
   invBtn.style.cssText='background:var(--accent);color:#000;border:none;border-radius:10px;padding:9px 18px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;';
   invRow.appendChild(invSel); invRow.appendChild(invBtn); invSec.appendChild(invRow);
   const invResult=document.createElement('div'); invResult.id='invite-result';
@@ -1542,11 +1565,11 @@ async function showAdminPanel(){
   // Users section
   const usersSec=document.createElement('div');
   usersSec.style.cssText='display:flex;flex-direction:column;gap:8px;';
-  const usersTitle=document.createElement('div'); usersTitle.textContent='Utilisateurs';
+  const usersTitle=document.createElement('div'); usersTitle.textContent='Users';
   usersTitle.style.cssText='font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.4);';
   const usersList=document.createElement('div'); usersList.id='admin-users-list';
   usersList.style.cssText='display:flex;flex-direction:column;gap:6px;font-size:13px;';
-  usersList.innerHTML='<div style="color:rgba(255,255,255,.3);">Chargement…</div>';
+  usersList.innerHTML='<div style="color:rgba(255,255,255,.3);">Loading…</div>';
   usersSec.appendChild(usersTitle); usersSec.appendChild(usersList); box.appendChild(usersSec);
 
   panel.appendChild(box);
@@ -1568,15 +1591,15 @@ async function showAdminPanel(){
     info.appendChild(name); info.appendChild(email);
     const badge=document.createElement('div');
     badge.style.cssText=`font-size:11px;padding:3px 8px;border-radius:6px;background:${u.approved?'rgba(200,255,0,.12)':'rgba(255,60,60,.12)'};color:${u.approved?'var(--accent)':'#ff6060'};`;
-    badge.textContent=u.approved?'approuvé':'en attente';
+    badge.textContent=u.approved?'approved':'pending';
     row.appendChild(info); row.appendChild(badge);
     if(u.approved){
       const revokeBtn=document.createElement('button');
       revokeBtn.style.cssText='background:none;border:1px solid rgba(255,60,60,.4);color:#ff6060;border-radius:8px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:inherit;';
-      revokeBtn.textContent='Révoquer';
+      revokeBtn.textContent='Revoke';
       revokeBtn.addEventListener('click',async()=>{
         await setDoc(doc(db,'users',d.id),{approved:false},{merge:true});
-        showToast('Utilisateur révoqué','success'); panel.remove(); showAdminPanel();
+        showToast('User revoked','success'); panel.remove(); showAdminPanel();
       });
       row.appendChild(revokeBtn);
     }
@@ -1589,10 +1612,10 @@ async function showAdminPanel(){
     const data={used:false,createdAt:serverTimestamp(),expiresAt:hours>0?new Date(Date.now()+hours*3600000):null};
     await setDoc(doc(db,'invites',token),data);
     invResult.style.display='block';
-    const t=document.createElement('span'); t.textContent=`Token : `; invResult.innerHTML='';
+    const t=document.createElement('span'); t.textContent='Token: '; invResult.innerHTML='';
     const strong=document.createElement('strong'); strong.textContent=token;
     const note=document.createElement('span'); note.style.cssText='opacity:.6;font-size:11px;display:block;margin-top:4px;';
-    note.textContent=`Valide ${hours>0?hours+'h':'indéfiniment'}`;
+    note.textContent=`Valid ${hours>0?hours+'h':'indefinitely'}`;
     invResult.appendChild(t); invResult.appendChild(strong); invResult.appendChild(note);
   });
 }
@@ -1600,26 +1623,26 @@ async function showAdminPanel(){
 // ── Confidential lock/unlock ──────────────────────────────────────
 function updateLockBtn(){
   const btn=document.getElementById('btn-lock'); if(!btn) return;
-  if(pinUnlocked){ btn.textContent='🔓'; btn.title='Verrouiller les liens confidentiels'; btn.setAttribute('aria-label','Verrouiller les liens confidentiels'); btn.classList.add('unlocked'); }
-  else { btn.textContent='🔒'; btn.title='Déverrouiller les liens confidentiels'; btn.setAttribute('aria-label','Déverrouiller les liens confidentiels'); btn.classList.remove('unlocked'); }
+  if(pinUnlocked){ btn.textContent='🔓'; btn.title='Lock confidential links'; btn.setAttribute('aria-label','Lock confidential links'); btn.classList.add('unlocked'); }
+  else { btn.textContent='🔒'; btn.title='Unlock confidential links'; btn.setAttribute('aria-label','Unlock confidential links'); btn.classList.remove('unlocked'); }
 }
 function lockConfidential(){
   pinUnlocked=false;
   if(curFilter===LOCKED_TAG||curFilter==='confidential'){ curFilter='all'; renderTagBar(); }
-  updateLockBtn(); renderAll(); showToast('🔒 Liens confidentiels masqués','');
+  updateLockBtn(); renderAll(); showToast('🔒 Confidential links hidden','');
 }
 function unlockConfidential(){
   if(!askPin()) return;
   pinUnlocked=true;
   if(!DATA.labels.includes(LOCKED_TAG)){ DATA.labels.push(LOCKED_TAG); scheduleSave(); }
-  updateLockBtn(); renderAll(); showToast('🔓 Liens confidentiels visibles','success');
+  updateLockBtn(); renderAll(); showToast('🔓 Confidential links visible','success');
 }
 
 // ── App boot ──────────────────────────────────────────────────────
 async function bootApp(user){
   userId=user.uid;
   const splash=document.getElementById('splash');
-  if(splash?.querySelector('.splash-status')) splash.querySelector('.splash-status').textContent='Chargement des données…';
+  if(splash?.querySelector('.splash-status')) splash.querySelector('.splash-status').textContent='Loading data…';
   await loadData();
 
   // Restore saved view mode
@@ -1644,14 +1667,14 @@ async function bootApp(user){
       btns.appendChild(adminBtn);
     }
     const signOutBtn=document.createElement('button'); signOutBtn.id='btn-signout'; signOutBtn.className='btn btn-ghost';
-    signOutBtn.textContent='Déconnexion'; signOutBtn.style.cssText='font-size:12px;padding:7px 14px;';
+    signOutBtn.textContent='Sign out'; signOutBtn.style.cssText='font-size:12px;padding:7px 14px;';
     signOutBtn.addEventListener('click',async()=>{ await signOut(auth); location.reload(); });
     btns.appendChild(signOutBtn);
     sClose.parentNode.insertBefore(row,sClose.parentNode.firstChild);
   }
 
   const displayName=user.displayName?user.displayName.split(' ')[0]:user.email;
-  showToast(`Bienvenue ${displayName} 👋`,'success');
+  showToast(`Welcome ${displayName} 👋`,'success');
 
   document.getElementById('topbar-row2').classList.add('hidden');
 
@@ -1677,7 +1700,7 @@ onAuthStateChanged(auth,async user=>{
   if(_inviteFlowInProgress) return;
   if(user){
     if(await isApproved(user)) bootApp(user);
-    else { showLoginScreen('⛔ Votre compte est en attente d\'approbation.'); await signOut(auth); }
+    else { showLoginScreen('⛔ Your account is pending approval.'); await signOut(auth); }
   } else { showLoginScreen(); }
 });
 </script>
