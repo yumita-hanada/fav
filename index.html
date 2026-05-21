@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>startpage</title>
-<link rel="icon" type="image/png" href="favicon.png" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔲</text></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
 
@@ -108,13 +108,17 @@
   .label-chip.active { background:var(--accent); color:#000; border-color:var(--accent); font-weight:600; }
   .label-chip .lbl-del {
     display:none;
-    width:14px; height:14px; border-radius:50%; flex-shrink:0;
-    background:rgba(255,60,60,.7); color:#fff; font-size:9px; line-height:1;
+    position:absolute; top:50%; right:6px; transform:translateY(-50%);
+    width:14px; height:14px; border-radius:50%;
+    background:rgba(200,40,40,.85); color:#fff; font-size:9px; line-height:1;
     align-items:center; justify-content:center; cursor:pointer;
-    margin-left:4px;
+    /* shift chip text left to make room */
+    z-index:2;
   }
+  .label-chip:hover { padding-right:26px; }
   .label-chip:hover .lbl-del { display:flex; }
-  .label-chip:hover .lbl-del:hover { background:#ff4444; }
+  .label-chip:hover .lbl-del:hover { background:#ff2222; }
+  .label-chip.active:hover .lbl-del { background:rgba(0,0,0,.35); }
   #lbl-add-btn { padding:5px 11px; border-radius:99px; font-size:12px; font-family:var(--font-mono); cursor:pointer; border:1px dashed var(--card-border); background:transparent; color:var(--text-muted); transition:all .18s; }
   #lbl-add-btn:hover { border-color:var(--accent); color:var(--accent); }
   #topbar-right { display:flex; gap:8px; align-items:center; flex-shrink:0; }
