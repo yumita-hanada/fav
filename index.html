@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>start-page</title>
+<title>startpage</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⭐</text></svg>">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap');
@@ -50,8 +50,10 @@
   @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
 
   /* ── BACKGROUND ─────────────────────────────────── */
-  #bg-layer { position:fixed; inset:0; z-index:0; background:var(--bg); transition:background .4s; }
-  #bg-layer.has-image { background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
+  #bg-layer  { position:fixed; inset:0; z-index:0; background:var(--bg); transition:opacity .8s ease; }
+  #bg-layer2 { position:fixed; inset:0; z-index:0; background:transparent; opacity:0; transition:opacity .8s ease; background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
+  #bg-layer.has-image  { background-size:cover!important; background-position:center!important; background-repeat:no-repeat!important; }
+  #bg-video2 { position:fixed; inset:0; z-index:0; width:100%; height:100%; object-fit:cover; opacity:0; transition:opacity .8s ease; }
   #bg-overlay { position:fixed; inset:0; z-index:1; background:rgba(0,0,0,1); pointer-events:none; opacity:0; transition:opacity .3s; }
   #bg-layer.has-image ~ #bg-overlay { opacity:var(--overlay-opacity,0.35); }
   #bg-layer.has-video ~ #bg-overlay { opacity:var(--overlay-opacity,0.35); }
@@ -300,7 +302,15 @@
   .folder-card:hover { border-color:rgba(255,255,255,.2); }
   .folder-header { font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); display:flex; align-items:center; gap:6px; }
   .folder-header::after { content:''; flex:1; height:1px; background:rgba(255,255,255,.06); }
+  .folder-pager { display:flex; flex-direction:column; gap:6px; }
   .folder-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .folder-nav { display:flex; align-items:center; justify-content:center; gap:6px; margin-top:2px; }
+  .folder-nav-btn { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); border-radius:6px; color:var(--text-muted); font-size:11px; padding:2px 8px; cursor:pointer; transition:all .15s; }
+  .folder-nav-btn:hover { background:rgba(255,255,255,.12); color:var(--text); }
+  .folder-nav-btn:disabled { opacity:.25; cursor:default; }
+  .folder-nav-dots { display:flex; gap:4px; }
+  .folder-nav-dot { width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,.2); border:none; padding:0; cursor:pointer; transition:background .15s; }
+  .folder-nav-dot.active { background:var(--accent); }
   .folder-item {
     aspect-ratio:1; border-radius:10px; background:rgba(255,255,255,.05);
     border:1px solid var(--card-border); display:flex; flex-direction:column;
@@ -413,7 +423,9 @@
 </div>
 
 <div id="bg-layer" aria-hidden="true"></div>
+<div id="bg-layer2" aria-hidden="true"></div>
 <video id="bg-video" autoplay muted loop playsinline aria-hidden="true"></video>
+<video id="bg-video2" autoplay muted loop playsinline aria-hidden="true" style="opacity:0;"></video>
 <div id="bg-overlay" aria-hidden="true"></div>
 
 <div id="app">
@@ -750,13 +762,14 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(async()=>{
     try {
+      // Use merge:false for settings to allow key deletions (playlists, etc.)
       await setDoc(userRef(),{
         labels:DATA.labels,
         settings:DATA.settings,
         approved:true,
         email: auth.currentUser?.email||'',
         displayName: auth.currentUser?.displayName||''
-      },{merge:true});
+      },{merge:false});
       const batch=writeBatch(db);
       DATA.links.forEach((l,i)=>batch.set(linkRef(l.id),{...l,order:i}));
       await batch.commit();
@@ -825,18 +838,35 @@ function applyBg(){
 }
 function setRandBg(){
   const imgs=getPlImages(); if(!imgs.length) return;
-  bgLayer.className='has-image';
-  bgLayer.style.backgroundImage=`url('${imgs[Math.floor(Math.random()*imgs.length)]}')`;
+  const url=imgs[Math.floor(Math.random()*imgs.length)];
+  const layer2=document.getElementById('bg-layer2');
+  layer2.style.backgroundImage=`url('${url}')`;
+  layer2.style.opacity='1';
+  setTimeout(()=>{
+    bgLayer.className='has-image';
+    bgLayer.style.backgroundImage=`url('${url}')`;
+    layer2.style.opacity='0';
+  },850);
 }
 function setRandVideo(){
   const vids=getPlVideos(); if(!vids.length) return;
   const bgVideo=document.getElementById('bg-video');
+  const bgVideo2=document.getElementById('bg-video2');
   const interval=DATA.settings.randVidInterval||0;
+  const url=vids[Math.floor(Math.random()*vids.length)];
   bgLayer.className='has-video';
-  bgVideo.src=vids[Math.floor(Math.random()*vids.length)];
-  bgVideo.classList.add('active');
-  bgVideo.onended=()=>{ if(interval===0) setRandVideo(); };
-  bgVideo.play().catch(()=>{});
+  // Crossfade: load new in video2, fade in, then swap
+  bgVideo2.src=url;
+  bgVideo2.play().catch(()=>{});
+  bgVideo2.style.opacity='1';
+  setTimeout(()=>{
+    bgVideo.src=url;
+    bgVideo.classList.add('active');
+    bgVideo.play().catch(()=>{});
+    bgVideo2.style.opacity='0';
+    bgVideo2.src='';
+    bgVideo.onended=()=>{ if(interval===0) setRandVideo(); };
+  },900);
   if(interval>0){ clearInterval(randTimer); randTimer=setInterval(setRandVideo,interval*1000); }
 }
 
@@ -998,6 +1028,23 @@ function renderAll(){
       if(confLinks.length) sortedTags.push(LOCKED_TAG);
     }
 
+    function makeFolderItem(l){
+      const a=document.createElement('a'); a.className='folder-item';
+      a.href=l.url; a.target='_blank'; a.rel='noreferrer noopener';
+      a.setAttribute('aria-label',l.name||l.url);
+      a.addEventListener('click',e=>{ e.preventDefault(); window.location.href=l.url; });
+      a.addEventListener('contextmenu',e=>{ e.preventDefault(); showCtx(e,l.id); });
+      if(l.icon&&isEmoji(l.icon)){
+        const fb=document.createElement('div'); fb.className='fallback-icon'; fb.textContent=l.icon.trim(); a.appendChild(fb);
+      } else {
+        const img=document.createElement('img'); img.src=l.icon||faviconUrl(l.url); img.alt=''; img.loading='lazy';
+        img.onerror=()=>{ const fb=document.createElement('div'); fb.className='fallback-icon'; fb.textContent=(l.name||'?')[0].toUpperCase(); img.replaceWith(fb); };
+        a.appendChild(img);
+      }
+      const nm=document.createElement('div'); nm.className='fi-name'; nm.textContent=l.name||l.url;
+      a.appendChild(nm); return a;
+    }
+
     function makeFolderGroup(label, items){
       const folder=document.createElement('div'); folder.className='folder-card';
       const hdr=document.createElement('div'); hdr.className='folder-header';
@@ -1006,27 +1053,49 @@ function renderAll(){
       cnt.textContent=` (${items.length})`; hdr.appendChild(cnt);
       folder.appendChild(hdr);
 
-      // Split into rows of 9
-      for(let i=0;i<items.length;i+=9){
+      // Paginated 3×3 grids
+      const PAGE=9;
+      const pages=[];
+      for(let i=0;i<items.length;i+=PAGE) pages.push(items.slice(i,i+PAGE));
+      if(!pages.length) pages.push([]);
+      let cur=0;
+
+      const pager=document.createElement('div'); pager.className='folder-pager';
+
+      function buildGrid(pg){
         const grid=document.createElement('div'); grid.className='folder-grid';
-        items.slice(i,i+9).forEach(l=>{
-          const a=document.createElement('a'); a.className='folder-item';
-          a.href=l.url; a.target='_blank'; a.rel='noreferrer noopener';
-          a.setAttribute('aria-label',l.name||l.url);
-          a.addEventListener('click',e=>{ e.preventDefault(); window.location.href=l.url; });
-          a.addEventListener('contextmenu',e=>{ e.preventDefault(); showCtx(e,l.id); });
-          if(l.icon&&isEmoji(l.icon)){
-            const fb=document.createElement('div'); fb.className='fallback-icon'; fb.textContent=l.icon.trim(); a.appendChild(fb);
-          } else {
-            const img=document.createElement('img'); img.src=l.icon||faviconUrl(l.url); img.alt=''; img.loading='lazy';
-            img.onerror=()=>{ const fb=document.createElement('div'); fb.className='fallback-icon'; fb.textContent=(l.name||'?')[0].toUpperCase(); img.replaceWith(fb); };
-            a.appendChild(img);
-          }
-          const nm=document.createElement('div'); nm.className='fi-name'; nm.textContent=l.name||l.url;
-          a.appendChild(nm); grid.appendChild(a);
-        });
-        folder.appendChild(grid);
+        pg.forEach(l=>grid.appendChild(makeFolderItem(l)));
+        return grid;
       }
+
+      let gridEl=buildGrid(pages[0]); pager.appendChild(gridEl);
+
+      // Nav (only if more than one page)
+      if(pages.length>1){
+        const nav=document.createElement('div'); nav.className='folder-nav';
+        const prev=document.createElement('button'); prev.className='folder-nav-btn'; prev.textContent='‹'; prev.disabled=true;
+        const dotsWrap=document.createElement('div'); dotsWrap.className='folder-nav-dots';
+        const next=document.createElement('button'); next.className='folder-nav-btn'; next.textContent='›';
+
+        const dots=pages.map((_,i)=>{
+          const d=document.createElement('button'); d.className='folder-nav-dot'+(i===0?' active':'');
+          d.addEventListener('click',()=>goTo(i)); return d;
+        });
+        dots.forEach(d=>dotsWrap.appendChild(d));
+
+        function goTo(n){
+          cur=Math.max(0,Math.min(n,pages.length-1));
+          const newGrid=buildGrid(pages[cur]);
+          pager.replaceChild(newGrid,gridEl); gridEl=newGrid;
+          prev.disabled=cur===0; next.disabled=cur===pages.length-1;
+          dots.forEach((d,i)=>d.classList.toggle('active',i===cur));
+        }
+        prev.addEventListener('click',()=>goTo(cur-1));
+        next.addEventListener('click',()=>goTo(cur+1));
+        nav.appendChild(prev); nav.appendChild(dotsWrap); nav.appendChild(next);
+        pager.appendChild(nav);
+      }
+      folder.appendChild(pager);
       return folder;
     }
 
@@ -1408,15 +1477,15 @@ function getPlVideos(){
   const s=DATA.settings;
   const pls=s.videoPlaylists||{};
   const active=s.activeVidPlaylists||[];
-  if(!active.length) return Object.values(pls).flat().map(u=>u).sort();
-  return active.flatMap(pl=>(pls[pl]||[])).sort();
+  const urls = !active.length ? Object.values(pls).flat() : active.flatMap(pl=>(pls[pl]||[]));
+  return urls.sort((a,b)=>vidFilename(a).localeCompare(vidFilename(b)));
 }
 function getPlImages(){
   const s=DATA.settings;
   const pls=s.imagePlaylists||{};
   const active=s.activeImgPlaylists||[];
-  if(!active.length) return Object.values(pls).flat().sort();
-  return active.flatMap(pl=>(pls[pl]||[])).sort();
+  const urls = !active.length ? Object.values(pls).flat() : active.flatMap(pl=>(pls[pl]||[]));
+  return urls.sort((a,b)=>vidFilename(a).localeCompare(vidFilename(b)));
 }
 
 function renderPlChips(type){
@@ -1456,6 +1525,7 @@ function renderPlChips(type){
   });
 }
 
+const _plFoldState = {}; // type:name -> bool
 function renderRandList2(type){
   const key=type==='vid'?'videoPlaylists':'imagePlaylists';
   const listEl=document.getElementById(type==='vid'?'random-videos-list':'random-images-list');
@@ -1467,11 +1537,26 @@ function renderRandList2(type){
   }
   listEl.innerHTML='';
   Object.keys(pls).sort().forEach(plName=>{
-    const urls=[...(pls[plName]||[])].sort();
+    const urls=[...(pls[plName]||[])].sort((a,b)=>vidFilename(a).localeCompare(vidFilename(b)));
     if(!urls.length) return;
-    const section=document.createElement('div'); section.style.cssText='margin-bottom:12px;';
-    const hdr=document.createElement('div'); hdr.style.cssText='font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);margin-bottom:6px;opacity:.7;';
-    hdr.textContent=plName+' ('+urls.length+')'; section.appendChild(hdr);
+    const section=document.createElement('div'); section.style.cssText='margin-bottom:8px;border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden;';
+    // Fold/unfold header
+    const isOpen = _plFoldState[type+':'+plName] !== false; // default open
+    const hdr=document.createElement('div');
+    hdr.style.cssText='font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);padding:8px 12px;cursor:pointer;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.04);user-select:none;';
+    const arrow=document.createElement('span'); arrow.style.cssText='font-size:10px;transition:transform .2s;display:inline-block;'; arrow.textContent='▶';
+    arrow.style.transform = isOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+    const lbl=document.createElement('span'); lbl.textContent=plName+' ('+urls.length+')'; lbl.style.flex='1';
+    hdr.appendChild(arrow); hdr.appendChild(lbl);
+    const body=document.createElement('div'); body.style.cssText='padding:8px;display:flex;flex-direction:column;gap:6px;';
+    body.style.display = isOpen ? 'flex' : 'none';
+    hdr.addEventListener('click',()=>{
+      const nowOpen = body.style.display==='none';
+      body.style.display = nowOpen ? 'flex' : 'none';
+      arrow.style.transform = nowOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+      _plFoldState[type+':'+plName] = nowOpen;
+    });
+    section.appendChild(hdr); section.appendChild(body);
     urls.forEach(url=>{
       const row=document.createElement('div');
       row.className=(type==='vid')?'vid-item':'rand-img-item';
@@ -1511,7 +1596,7 @@ function renderRandList2(type){
         });
         row.appendChild(sp); row.appendChild(delBtn);
       }
-      section.appendChild(row);
+      body.appendChild(row);
     });
     listEl.appendChild(section);
   });
@@ -1543,7 +1628,7 @@ function stopVidPreview(){
   _vidPreviewActive=null;
   applyBg();
   document.getElementById('vid-preview-banner').classList.remove('show');
-  document.querySelectorAll('.vid-btn.preview-active').forEach(b=>{ b.classList.remove('preview-active'); b.textContent='▶ Aperçu'; });
+  document.querySelectorAll('.vid-btn.preview-active').forEach(b=>{ b.classList.remove('preview-active'); b.textContent='▶ Preview'; });
 }
 
 document.getElementById('vid-preview-stop').addEventListener('click', stopVidPreview);
